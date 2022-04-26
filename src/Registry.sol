@@ -39,8 +39,4 @@ contract Registry {
         nameToUser[name] = address(0x0);
         emit Released(msg.sender, name);
     }
-
-    function checkName(string memory name) public view returns(address) {
-        return nameToUser[name];
-    }
 }
