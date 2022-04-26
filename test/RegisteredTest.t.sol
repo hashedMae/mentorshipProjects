@@ -21,7 +21,7 @@ contract RegisteredTest is RegisteredAbstract {
         emit Released(sonic, "Bubsy");
         vm.prank(sonic);
         r.releaseName("Bubsy");
-        assertEq(r.checkName("Bubsy"), address(0x0));
+        assertEq(r.nameToUser("Bubsy"), address(0x0));
     }
 
     function testOnlyOwnerCanRelease() public {

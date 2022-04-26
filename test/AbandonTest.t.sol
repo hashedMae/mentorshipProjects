@@ -9,6 +9,6 @@ contract AbandonTest is AbandonAbstract {
     function testNameCanBeRegisteredAfterRelease() public {
         vm.prank(bubsy);
         r.registerName("Bubsy");
-        assertEq(r.checkName("Bubsy"), bubsy);
+        assertEq(r.nameToUser("Bubsy"), bubsy);
     }
 }
