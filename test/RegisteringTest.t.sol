@@ -4,17 +4,14 @@ import "./ZeroState.t.sol";
 
 contract RegisteringTests is ZeroState {
 
+    event Registered(address user, string name);
+
     function testRegister() public {
         console.log("registers a name");
+        vm.expectEmit(true, true, false, true);
+        emit Registered(sonic, "Sonic");
         vm.prank(sonic);
         r.registerName("Sonic");
-        assertEq(r.checkName("Sonic"), sonic);
-        /*
-        had tried using
-        assertEq(r.nameToUser("Sonic"), sonic)
-        but received  TypeError: Indexed expression has to be a type, mapping or array (is function (string memory) view external returns (address))
-        so created getter function *shrug*
-        */
-
+        assertEq(r.nameToUser("Sonic"), sonic);
     }
 }

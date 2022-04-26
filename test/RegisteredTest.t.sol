@@ -4,7 +4,10 @@ import "./RegisteredAbstract.t.sol";
 
 contract RegisteredTest is RegisteredAbstract {
 
-    function testBubsyRugged() public {
+    event Released(address user, string name);
+
+
+    function testCannotRegisterOwnedName() public {
         console.log("attempt to register will fail as Bubsy has already been registered by Sonic");
         vm.startPrank(bubsy);
         vm.expectRevert("name is already registered");
@@ -14,6 +17,8 @@ contract RegisteredTest is RegisteredAbstract {
 
     function testRelease() public {
         console.log("tests that name can be released after registration");
+        vm.expectEmit(true, true, false, true);
+        emit Released(sonic, "Bubsy");
         vm.prank(sonic);
         r.releaseName("Bubsy");
         assertEq(r.checkName("Bubsy"), address(0x0));
