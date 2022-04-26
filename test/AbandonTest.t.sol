@@ -6,7 +6,7 @@ import "forge-std/Test.sol";
 contract AbandonTest is AbandonAbstract {
 
 
-    function testNameCanBeRegisteredAfter() public {
+    function testNameCanBeRegisteredAfterRelease() public {
         vm.prank(bubsy);
         r.registerName("Bubsy");
         assertEq(r.checkName("Bubsy"), bubsy);
