@@ -20,4 +20,20 @@ contract DepositTest is DepositAbstract {
         emit Deposit(tails, 100, 100);
         vault.depositToken(100);
     }
+
+    function testDepositUserBalanceUpdatesCorrectlyMultipleDeposits() public {
+        vm.startPrank(sonic);
+        vault.depositToken(250);
+        vault.depositToken(250);
+        vm.stopPrank();
+        assertEq(vault.userBalance(sonic), (500));
+
+    }
+
+    function testCannotDepositMoreThanInWallet() public {
+        vm.prank(knuckles);
+        vm.expectRevert("ERC20: Insufficient balance");
+        vault.depositToken(5000);
+
+    }
 }

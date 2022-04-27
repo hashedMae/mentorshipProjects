@@ -9,11 +9,11 @@ abstract contract DepositAbstract is ZeroState {
          super.setUp();
          
          vm.prank(sonic);
-         rings.approve(address(vault), 1000);
+         rings.approve(address(vault), 100000);
          vm.prank(tails);
-         rings.approve(address(vault), 1000);
+         rings.approve(address(vault), 100000);
          vm.prank(knuckles);
-         rings.approve(address(vault), 1000);
+         rings.approve(address(vault), 100000);
 
      }
 }
