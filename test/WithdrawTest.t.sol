@@ -3,9 +3,10 @@ pragma solidity ^0.8.13;
 
 import "./WithdrawAbstract.t.sol";
 
-contract WithDrawTest is WithdrawAbstract {
+contract WithdrawTest is WithdrawAbstract {
 
-    event Withdrawal(address user, uint256 amount, uint256 balance);
+    event Withdrawal(address indexed user, uint256 amount, uint256 balance);
+
 
     function testWithdrawExactBalance() public {
         vm.prank(sonic);
@@ -25,6 +26,13 @@ contract WithDrawTest is WithdrawAbstract {
         emit Withdrawal(knuckles, 100, 900);
         vault.withdrawToken(100);
     }
+
+    function testWithdrawZeroTokens() public {
+        vm.prank(tails);
+        vault.withdrawToken(0);
+    }
+
+    function testCannot
 
 
 

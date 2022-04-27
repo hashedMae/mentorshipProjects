@@ -34,6 +34,10 @@ contract DepositTest is DepositAbstract {
         vm.prank(knuckles);
         vm.expectRevert("ERC20: Insufficient balance");
         vault.depositToken(5000);
+    }
 
+    function testDepositZeroTokens() public {
+        vm.prank(knuckles);
+        vault.depositToken(0);
     }
 }
