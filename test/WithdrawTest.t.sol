@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "./WithdrawAbstract.t.sol";
+import "./DepositedState.t.sol";
 
-contract WithdrawTest is WithdrawAbstract {
+contract WithdrawTest is DepositedState {
 
     event Withdrawal(address indexed user, uint256 amount, uint256 balance);
 
@@ -31,9 +31,4 @@ contract WithdrawTest is WithdrawAbstract {
         vm.prank(tails);
         vault.withdrawToken(0);
     }
-
-    function testCannot
-
-
-
 }

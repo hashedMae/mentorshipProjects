@@ -1,25 +1,27 @@
 /// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "./ZeroState.sol";
+import "./ZeroState.t.sol";
 
 abstract contract DepositedState is ZeroState {
 
     function setUp() public override virtual {
         super.setUp();
 
-        vm.startstartPrank(sonic);
+        vm.startPrank(sonic);
         rings.approve(address(vault), 100000);
         vault.depositToken(1000);
-        vm.stopPrank;
+        vm.stopPrank();
+
         vm.startPrank(tails);
         rings.approve(address(vault), 100000);
         vault.depositToken(1000);
-        vm.stopPrank;
+        vm.stopPrank();
+
         vm.startPrank(knuckles);
         rings.approve(address(vault), 100000);
         vault.depositToken(1000);
-        vm.stopPrank;
-
+        vm.stopPrank();
+        
     }
 }

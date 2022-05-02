@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "./DepositAbstract.t.sol";
+import "./ZeroState.t.sol";
 import "../lib/forge-std/src/Test.sol";
 
-contract DepositTest is DepositAbstract {
+contract DepositTest is ZeroState {
 
     event Deposit(address indexed user, uint256 amount, uint256 balance);
 
@@ -36,7 +36,8 @@ contract DepositTest is DepositAbstract {
     }
 
     function testCannotDepositMoreThanInWallet() public {
-        vm.prank(knuckles);
+        vm.startPrank(knuckles);
+        rings.approve(address(vault), 100000);
         vm.expectRevert("ERC20: Insufficient balance");
         vault.depositToken(5000);
     }
