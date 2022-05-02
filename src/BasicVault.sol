@@ -40,8 +40,9 @@ function depositToken(uint256 amount) public {
 /// @param amount Number of tokens to withdraw
 function withdrawToken(uint256 amount) public {
     require(userBalance[msg.sender] >= amount, "requested amount exceeds user balance");
-    require(iToken.transferFrom(address(this), msg.sender, amount), "failed on withdrawal");
     userBalance[msg.sender] -= amount;
+    require(iToken.transferFrom(address(this), msg.sender, amount), "failed on withdrawal");
+    
     emit Withdrawal(msg.sender, amount, userBalance[msg.sender]);
 }
 
