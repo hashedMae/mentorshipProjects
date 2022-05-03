@@ -10,17 +10,17 @@ abstract contract DepositedState is ZeroState {
 
         vm.startPrank(sonic);
         rings.approve(address(vault), 100000);
-        vault.depositToken(1000);
+        vault.deposit(1000);
         vm.stopPrank();
 
         vm.startPrank(tails);
         rings.approve(address(vault), 100000);
-        vault.depositToken(1000);
+        vault.deposit(1000);
         vm.stopPrank();
 
         vm.startPrank(knuckles);
         rings.approve(address(vault), 100000);
-        vault.depositToken(1000);
+        vault.deposit(1000);
         vm.stopPrank();
         
     }

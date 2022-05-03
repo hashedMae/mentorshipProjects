@@ -8,12 +8,12 @@ contract DepositTest is ZeroState {
 
     event Deposit(address indexed user, uint256 amount, uint256 balance);
 
-    function testDepositBelowAllowance() public {
+    function testDepositInitialBalance() public {
         vm.startPrank(sonic);
         rings.approve(address(vault), 100000);
-        vault.depositToken(500);
+        vault.deposit(500);
         vm.stopPrank;
-        assertEq(vault.userBalance(sonic), (500));
+        assertEq(vault.balances(sonic), (500));
     }
 
     function testDepositEventEmit() public {
@@ -21,29 +21,30 @@ contract DepositTest is ZeroState {
         rings.approve(address(vault), 100000);
         vm.expectEmit(true, false, false, false);
         emit Deposit(tails, 100, 100);
-        vault.depositToken(100);
+        vault.deposit(100);
         vm.stopPrank;
     }
 
     function testDepositUserBalanceUpdatesCorrectlyMultipleDeposits() public {
         vm.startPrank(sonic);
         rings.approve(address(vault), 100000);
-        vault.depositToken(250);
-        vault.depositToken(250);
+        vault.deposit(250);
+        vault.deposit(250);
         vm.stopPrank();
-        assertEq(vault.userBalance(sonic), (500));
+        assertEq(vault.balances(sonic), (500));
 
     }
 
+    /** 
     function testCannotDepositMoreThanInWallet() public {
         vm.startPrank(knuckles);
         rings.approve(address(vault), 100000);
         vm.expectRevert("ERC20: Insufficient balance");
-        vault.depositToken(5000);
-    }
+        vault.deposit(5000);
+    } */
 
     function testDepositZeroTokens() public {
         vm.prank(knuckles);
-        vault.depositToken(0);
+        vault.deposit(0);
     }
 }
