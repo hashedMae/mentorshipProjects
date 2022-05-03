@@ -13,14 +13,17 @@ abstract contract ZeroState is Test {
     address sonic = address(0x1);
     address tails = address(0x2);
     address knuckles = address(0x3);
+
+    address[] users = [sonic, tails, knuckles];
     
-    function setUp() public {
+    function setUp() public virtual {
         rings = new Rings();
         wrings = new WRings(rings);
 
-        rings.mint(sonic, 1000);
-        rings.mint(tails, 1000);
-        rings.mint(knuckles, 1000);
+        for(uint i = 0; i < users.length; i++) {
+            rings.mint(users[i], 1000*10**18);
+            
+        }
     }
 
     

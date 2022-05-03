@@ -5,29 +5,35 @@ import "./ZeroState.t.sol";
 
 contract ZeroStateTest is ZeroState {
 
-    event Wrapped(address indexed wrapper, uint256 amount);
+    event Wrapped(address indexed wrapper, uint amount);
 
 
-    function testCannotUnwrapZeroTokens() public {
+    function testCannotUnwrapMoreTokensThanInWallet() public {
         vm.prank(sonic);
-        vm.expectRevert("ERC20: Insufficient balance");
+        vm.expectRevert("Not Enough WRings to unwrap");
         wrings.unwrap(10);
     }
 
-    function testWrapHalfOfTokens() public {
+    function testWrapTokens(uint64 amount) public {
+        uint256 ringsPreBalance = rings.balanceOf(tails);
+        uint256 wringsPreBalance = wrings.balanceOf(tails);
         vm.startPrank(tails);
-        rings.approve(address(wrings), 500);
-        wrings.wrap(500);
+        rings.approve(address(wrings), amount);
+        wrings.wrap(amount);
         vm.stopPrank();
-        assertEq(wrings.balanceOf(tails), 500);
+        uint256 ringsPostBalance = rings.balanceOf(tails);
+        uint256 wringsPostBalance = wrings.balanceOf(tails);
+        bool success = ringsPostBalance == (ringsPreBalance - amount) && wringsPostBalance == (wringsPreBalance + amount);
+        assertEq(success, true);
+        
     }
 
-    function testWrapEventEmit() public {
+    function testWrapEventEmit(uint64 amount) public {
         vm.startPrank(knuckles);
-        rings.approve(address(wrings), 1000);
+        rings.approve(address(wrings), amount);
         vm.expectEmit(true, false, false, false);
-        emit Wrapped(knuckles, 1000);
-        wrings.wrap(1000);
+        emit Wrapped(knuckles, amount);
+        wrings.wrap(amount);
         vm.stopPrank;
     }
 }
