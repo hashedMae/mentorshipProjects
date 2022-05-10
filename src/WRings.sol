@@ -27,8 +27,6 @@ contract WRings is ERC20Mock {
     /// @dev
     /// @param amount Number of Rings tokens to deposit to the contract and wrapped tokens to mint to the user
     function wrap(uint256 amount) external {
-        require(iRings.balanceOf(msg.sender) >= amount, "Insufficent Rings in wallet");
-        require(iRings.allowance(msg.sender, address(this)) >= amount, "Insufficent token approval");
         mint(msg.sender, amount);
         iRings.transferFrom(msg.sender, address(this), amount);
         emit Wrapped(msg.sender, amount);
@@ -38,9 +36,9 @@ contract WRings is ERC20Mock {
     ///@dev 
     ///@param amount Number of WRings tokens to burn and unwrapped tokens to transfer to user
     function unwrap(uint256 amount) external {
-        require(this.balanceOf(msg.sender) >= amount, "Not Enough WRings to unwrap");
+        require(_balanceOf[msg.sender] >= amount, "Not Enough WRings to unwrap");
         burn(msg.sender, amount);
-        iRings.transferFrom(address(this), msg.sender, amount);
+        iRings.transfer(msg.sender, amount);
         emit Unwrapped(msg.sender, amount);
     }
     
