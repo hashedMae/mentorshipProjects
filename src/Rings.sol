@@ -68,7 +68,7 @@ import "../lib/yield-utils-v2/contracts/mocks/ERC20Mock.sol";
 contract Rings is ERC20Mock {
 
     constructor() ERC20Mock("Rings", "RNG") { }
-
+/** 
     /// @notice Mint some tokens
     /// @dev Will mint tokens for whoever wants them
     /// @param to The Address minted tokens will be sent to
@@ -84,5 +84,5 @@ contract Rings is ERC20Mock {
     function burn(address from, uint256 amount) public override {
         super.burn(from, amount);
     }
-
+*/
 }
