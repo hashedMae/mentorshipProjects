@@ -1,20 +1,50 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+/// @title RMath
+/// @author hashedMae
+/// Math library for using wads with rads
+
+library RMath {
+
+    
+    /// @dev converts a wad to a rad, multiplies it by a rad, then returns a wad
+    function rmul(uint256 x, uint256 y) internal pure returns(uint256 z) {
+        z = (x*10**9) * y;
+        unchecked {z /= 10**9;}
+    }
+
+    /// @dev converts a wad to a rad, divides it by a rad, then returns a wad
+    function rdiv(uint256 x, uint256 y) internal pure returns(uint256 z) {
+        z = (x*10**9) / y;
+        unchecked {z /= 10**9;}
+    }
+
+
+}
+
+
 pragma solidity ^0.8.13;
 
 import "./Rings.sol";
-import "../lib/yield-utils-v2/contracts/mocks/ERC20Mock.sol";
+import "../lib/yield-utils-v2/contracts/token/ERC20.sol";
 import "../lib/yield-utils-v2/contracts/token/IERC20.sol";
 import "../lib/yield-utils-v2/contracts/math/WDiv.sol";
 import "../lib/yield-utils-v2/contracts/math/WMul.sol";
 import "../lib/yield-utils-v2/contracts/access/Ownable.sol";
+import "../lib/yield-utils-v2/contracts/token/TransferHelper.sol";
 
 /// @title WRings
 /// @author hashedMae
 /// @notice An ERC20 fractional wrapper for yield bearing tokens
 /// @dev Utilizes WMul and WDiv math libraries from Yield-Utils-V2. Will always round down to zero.
 
-contract WRings is ERC20Mock,
+contract WRings is ERC20,
                    Ownable {
+
+    using TransferHelper for IERC20;
+    using RMath for uint256;
+
 
     IERC20 public immutable iRings;
     uint256 public exchangeRate;
@@ -25,7 +55,7 @@ contract WRings is ERC20Mock,
     event Withdraw(address indexed caller, address indexed receiver, address indexed owner, uint256 assets, uint256 shares);
 
     /// @param iRings_ ERC20 Interface for Rings token
-    constructor(IERC20 iRings_) ERC20Mock("WRings", "WRNG") {
+    constructor(IERC20 iRings_) ERC20("WRings", "WRNG", 18) {
         iRings = iRings_;
     }
 
@@ -52,18 +82,23 @@ contract WRings is ERC20Mock,
     /// @notice The amount of shares to mint to a user for the asset token deposited under ideal conditions
     /// @param assets Number of Rings tokens to deposit to the contract 
     /// @return shares Number of vault shares minted to the user based on the exchange rate
-    function convertToShares(uint256 assets) external view returns(uint256) {
-        uint256 shares = WMul.wmul(assets * 10**9, exchangeRate) / 10**9;
-        
-        return shares;
+    function _convertToShares(uint256 assets) internal view returns(uint256 shares) {
+        shares = assets.rmul(exchangeRate);
     }
 
     /// @notice Used to calculate the amount of an asset token to transfer to user for vault tokens burned under ideal conditions
     /// @param shares Number of vault tokens to burn
     /// @return assets Number of asset tokens to transfer to the user
-    function convertToAssets(uint256 shares) external view returns(uint256) {
-        uint256 assets = WDiv.wdiv(shares * 10**9, exchangeRate) / 10**9;
-        return assets;
+    function _convertToAssets(uint256 shares) internal view returns(uint256 assets) {
+        assets = shares.rdiv(exchangeRate);
+    }
+
+    function convertToShares(uint256 assets) external view returns(uint256 shares) {
+        shares = _convertToShares(assets);
+    }
+
+    function convertToAssets(uint256 shares) external view returns(uint256 assets) {
+       assets = _convertToAssets(shares);
     }
 
     /// @notice User specifies amount of asset token to deposit in return for vault shares
@@ -71,9 +106,9 @@ contract WRings is ERC20Mock,
     /// @param receiver Address that vault tokens will be minted to
     /// @return shares Number of vault shares to return to the user
     function deposit(uint256 assets, address receiver) external  returns(uint256) {
-        uint256 shares = WMul.wmul(assets * 10**9, exchangeRate) / 10**9;
-        mint(receiver, shares);
-        iRings.transferFrom(msg.sender, address(this), assets);
+        uint256 shares = _convertToShares(assets);
+        _mint(receiver, shares);
+        iRings.safeTransferFrom(msg.sender, address(this), assets);
         emit Deposit(msg.sender, receiver, assets, shares);
         return shares;
     }
@@ -83,9 +118,9 @@ contract WRings is ERC20Mock,
     /// @param receiver Address that vault Tokens will be minted to
     /// @return assets Number of asset tokens required to mint desired amount of shares
     function mint(uint256 shares, address receiver) external  returns(uint256) {
-        uint256 assets = WDiv.wdiv(shares * 10**9, exchangeRate) / 10**9;
-        mint(receiver, shares);
-        iRings.transferFrom(msg.sender, address(this), assets);
+        uint256 assets = _convertToAssets(shares);
+        _mint(receiver, shares);
+        iRings.safeTransferFrom(msg.sender, address(this), assets);
         emit Deposit(msg.sender, receiver, assets, shares);
         return assets;
     }
@@ -97,10 +132,10 @@ contract WRings is ERC20Mock,
     /// @param owner Address that currently owns the vault tokens
     /// @return shares Number of shares required to be exchange for desired amount of asset tokens
     function withdraw(uint256 assets, address receiver, address owner) external  returns(uint256){
-        uint256 shares = WMul.wmul(assets * 10**9, exchangeRate) / 10**9;
-        require(_balanceOf[owner] >= shares, "Owner holds less than required amount of vault shares for requested assets");
-        burn(owner, shares);
-        iRings.transfer(receiver, assets);
+        uint256 shares = _convertToShares(assets);
+        require(_balanceOf[owner] >= shares, "Insufficient shares");
+        _burn(owner, shares);
+        iRings.safeTransfer(receiver, assets);
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
         return shares;
     }
@@ -112,10 +147,10 @@ contract WRings is ERC20Mock,
     /// @param owner Address that currently owns the vault tokens
     /// @return assets Number of asset tokens received in exchange for the specified vault tokens
     function redeem(uint256 shares, address receiver, address owner) external returns(uint256) {
-        require(_balanceOf[owner] >= shares, "Owner holds less than specified amount of vault shares");
-        uint256 assets = WDiv.wdiv(shares * 10**9, exchangeRate) / 10**9;
-        burn(owner, shares);
-        iRings.transfer(receiver, assets);
+        require(_balanceOf[owner] >= shares, "Insufficient shares");
+        uint256 assets = _convertToAssets(shares);
+        _burn(owner, shares);
+        iRings.safeTransfer(receiver, assets);
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
         return assets;
     }
