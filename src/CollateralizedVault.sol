@@ -1,34 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.13;
 
-library MathHelper {
-
-    /// USDC only has 6 decimal points and that's annoying because the other two tokens we're working with have 18. 
-    /// This library will convert the USDC amount to a wad, do some math, and then back again if necessary
-
-    /// @dev x is to 6 decimal places, y and z are to 18 decimal places
-    function uadd(uint256 x, uint256 y) internal pure returns(uint256 z) {
-        z = (x*10**12) + y;
-    }
-
-    /// @dev x is to 6 decimal places, y and z are to 18 decimal places
-    function usubtractFrom(uint256 x, uint256 y) internal pure returns(uint256 z) {
-        z = (x*10**12) - y;
-    }
-
-    /// @dev y is to 6 decimal places, x and z are to 18 decimal places
-    function usubtractWith(uint256 x, uint256 y) internal pure returns(uint256 z) {
-        z = x - (y*10**12);
-    }
-
-    
-
-
-    /// @dev x is to 6 decimal places, y and z are to 18 decimal places
-    
-
-}
-
 import "../lib/yield-utils-v2/contracts/math/WDiv.sol";
 import "../lib/yield-utils-v2/contracts/math/WMul.sol";
 import "../lib/yield-utils-v2/contracts/token/IERC20.sol";
@@ -38,7 +10,7 @@ import "../lib/yield-utils-v2/contracts/access/Ownable.sol";
 
 /// https://github.com/yieldprotocol/mentorship2022/issues/5
 
-contract CollateralizedVault is Ownable{
+contract CollateralizedVault is Ownable {
 
     using TransferHelper for IERC20;
     using MathHelper for uint256;
@@ -73,13 +45,12 @@ contract CollateralizedVault is Ownable{
         uint256 wethDeposit;
         uint256 daiDebt;
         uint256 usdcDebt;
-        uint256 totalDebt;
     }
 
     mapping(address => user) public users;
 
     event Deposit(address indexed user, uint256 amount);
-    event Borrow(address indexed user, uint256 amount);
+    event Borrow(address indexed user, address indexed token, uint256 amount);
     event Repay(address indexed usere, uint256 repaid, uint256 remaining);
 
     constructor (address DAI_, address WETH_, address USDC_, AggregatorV3Interface dETH_, AggregatorV3Interface uETH_, uint256 amount_) {
@@ -98,7 +69,7 @@ contract CollateralizedVault is Ownable{
     /**
         todo
             Xdeposit
-            oracles
+            Xoracles
             liquidate (onlyOwner)
             6 decimal and 18 decimal math
             withdraw
@@ -110,18 +81,75 @@ contract CollateralizedVault is Ownable{
             https://hackernoon.com/getting-prices-right
     */
 
-    function _availableDAI() internal pure returns(uint256) {
-        userWeth = users[msg.sender].wethDeposit;
-        current
-        price = dETHFeed.latestRoundData();
+    /// @return price the price of 1 WETH in DAI
+    function _daiWETH() internal pure returns(uint256 price) {
+        (   ,
+        price,
+            ,
+            ,
+        ) = dETHFeed.latestRoundData();
+    }
 
+    /// @return price the price of 1 WETH in USDC
+    function _usdcWETH() internal pure returns(uint256 price) {
+        (   ,
+        price,
+            ,
+            ,
+        ) = uETHFeed.latestRoundData();
+    }
+
+    /// @dev provides how much DAI is able to be borrowed based on unutilized collateral
+    function _availableDAI() internal pure returns(uint256 availableDAI) {
+        uint256 freeCollateral = users[msg.sender].wethDeposit - _totalDebt();
+        
+        availableDAI = WMul.wmul(freeCollateral, _daiWETH());
+    }
+
+    /// @dev provides how much USDC is able to be borrowed based on unutilized collateral
+    function _availableUSDC() internal pure returns(uint256 availableUSDC) {
+        uint256 freeCollateral = users[msg.sender].wethDeposit - _totalDebt();
+        availableUSDC = WMul.wmul(freeCollateral, _usdcWETH());
+    }
+
+    /// @dev provides how much an amount of DAI is worth in WETH
+    function _dai2WETH(uint256 amount) internal pure returns(uint256 weth) {
+        weth = WDiv.wdiv(amount, _daiWETH());
+    }
+
+    /// @dev provides how much an amount of USDC is worth in WETH
+    function _usdc2WETH(uint256 amount) internal pure returns(uint256 weth) {
+        weth = WDiv.wdiv(amount, _usdcWETH());
+    }
+
+    /// @dev provides value of 1 DAI in USDC
+    function _daiUSDC() internal pure returns(uint256 price) {
+        price = WDiv.wdiv(_daiWETH(), _usdcWETH());
+    }
+
+
+    function _totalDebt() internal pure returns(uint256 totalDebt) {
+        totalDebt = _usdc2WETH((users[msg.sender].daiDebt * _daiUSDC) + (users[msg.sender].usdcDebt * 10**12));
     }
     
     function deposit(uint256 amount) external {
         users[msg.sender].wethDeposit += amount;
         iWETH.safeTransferFrom(msg.sender, this, amount);
+        emit Deposit(msg.sender, amount);
     }
 
-    function borrow
+    function borrowDai(uint256 amount) external {
+        require(amount <= _availableDAI(), "Insufficient collateral");
+        users[msg.sender].daiDebt += amount;
+        iDAI.transfer(msg.sender, amount);
+        emit Borrow(msg.sender, DAI, amount);
+    }
+
+    function borrowUSDC(uint256 amount) external {
+        require(amount <= _availableUSDC(), "Insufficient collateral");
+        users[msg.sender].usdcDebt += amount;
+        iUSDC.transfer(msg.sender, amount);
+        emit Borrow(msg.sender, USDC, amount);
+    }
 
 }
