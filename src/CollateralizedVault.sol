@@ -129,18 +129,20 @@ contract CollateralizedVault is Ownable {
         price = WDiv.wdiv(_daiWETH(), _usdcWETH());
     }
 
-
+    /// @dev combines a users DAI and USDC debts and returns it denominated in WETH
     function _totalDebt(address user) internal view returns(uint256 totalDebt) {
-        uint256 debt = _usdc2WETH((users[user].daiDebt * _daiUSDC()) + (users[user].usdcDebt * 10**12));
-        totalDebt = _usdc2WETH(debt);
+        totalDebt = _usdc2WETH((users[user].daiDebt * _daiUSDC()) + (users[user].usdcDebt * 10**12));
+        
     }
     
+    /// @notice allows a user to deposit WETH for use as collateral
     function deposit(uint256 amount) external {
         users[msg.sender].wethDeposit += amount;
         iWETH.safeTransferFrom(msg.sender, address(this), amount);
         emit Deposit(msg.sender, amount);
     }
 
+    /// @notice allows a user to borrow DAI
     function borrowDai(uint256 amount) external {
         require(amount <= _availableDAI(), "Insufficient collateral");
         users[msg.sender].daiDebt += amount;
@@ -148,6 +150,7 @@ contract CollateralizedVault is Ownable {
         emit Borrow(msg.sender, DAI, amount);
     }
 
+    /// @notice allows a user to borrow USDC
     function borrowUSDC(uint256 amount) external {
         require(amount <= _availableUSDC(), "Insufficient collateral");
         users[msg.sender].usdcDebt += amount;
@@ -155,6 +158,7 @@ contract CollateralizedVault is Ownable {
         emit Borrow(msg.sender, USDC, amount);
     }
 
+    /// @notice allows a user to repay borrowed DAI
     function repayDAI(uint256 amount) external {
         require(users[msg.sender].daiDebt >= amount, "debt exceeds payment");
         users[msg.sender].daiDebt -= amount;
@@ -162,6 +166,7 @@ contract CollateralizedVault is Ownable {
         emit Repay(msg.sender, amount, users[msg.sender].daiDebt);
     }
 
+    /// @notice allows a user to repay borrowed USDC
     function repayUSDC(uint256 amount) external {
         require(users[msg.sender].usdcDebt >= amount, "debt exceeds payment");
         users[msg.sender].usdcDebt -= amount;
@@ -169,6 +174,7 @@ contract CollateralizedVault is Ownable {
         emit Repay(msg.sender, amount, users[msg.sender].usdcDebt);
     }
 
+    /// @notice allows a user to withdraw WETH that's not currently utilized as collateral
     function withdraw(uint256 amount) external {
         require(users[msg.sender].wethDeposit - _totalDebt(msg.sender) >= amount, "request exceeds available collateral");
         users[msg.sender].wethDeposit -= amount;
@@ -176,10 +182,12 @@ contract CollateralizedVault is Ownable {
         emit Withdraw(msg.sender, amount);
     }
 
+    /// @notice provides a user's value to debt ratio
     function ratio(address user) view external returns(uint256 userRatio){
         userRatio = WDiv.wdiv(users[user].wethDeposit, _totalDebt(user));
     }
 
+    /// @notice allows vault owner to liquidate under collateralized users
     function liquidate(address user) external onlyOwner {
         require(ratio(user) < 1, "specified user can't be liquidated");
         uint256 lqdtdWETH = users[user].wethDeposit;
