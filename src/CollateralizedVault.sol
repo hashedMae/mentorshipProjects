@@ -13,7 +13,6 @@ import "../lib/yield-utils-v2/contracts/access/Ownable.sol";
 contract CollateralizedVault is Ownable {
 
     using TransferHelper for IERC20;
-    using MathHelper for uint256;
     
     /// mainnet 0x6B175474E89094C44Da98b954EedeAC495271d0F
     /// rinkeby 0x0165b733e860b1674541BB7409f8a4743A564157
@@ -51,7 +50,8 @@ contract CollateralizedVault is Ownable {
 
     event Deposit(address indexed user, uint256 amount);
     event Borrow(address indexed user, address indexed token, uint256 amount);
-    event Repay(address indexed usere, uint256 repaid, uint256 remaining);
+    event Repay(address indexed user, uint256 repaid, uint256 remaining);
+    event Withdraw(address indexed user, uint256 amount);
 
     constructor (address DAI_, address WETH_, address USDC_, AggregatorV3Interface dETH_, AggregatorV3Interface uETH_, uint256 amount_) {
         DAI = DAI_;
@@ -60,96 +60,133 @@ contract CollateralizedVault is Ownable {
         iWETH = IERC20(WETH_);
         USDC = USDC_;
         iUSDC = IERC20(USDC_);
-        dETHfeed = dETH_;
+        dETHFeed = dETH_;
         uETHFeed = uETH_;
-        iDAI.transferFrom(msg.sender, this, amount_);
-        iUSDC.transferFrom(msg.sender, this, amount_);
+        iDAI.transferFrom(msg.sender, address(this), amount_);
+        iUSDC.transferFrom(msg.sender, address(this), amount_);
     }
 
     /**
         todo
             Xdeposit
             Xoracles
-            liquidate (onlyOwner)
-            6 decimal and 18 decimal math
-            withdraw
-            ratio
-            repay
-            borrow
-            surplus collateral/borrowing power
+            Xliquidate (onlyOwner)
+            X6 decimal and 18 decimal math
+            Xwithdraw
+            Xratio
+            Xrepay
+            Xborrow
+            Xsurplus collateral/borrowing power
             manual price oracle option
             https://hackernoon.com/getting-prices-right
     */
 
     /// @return price the price of 1 WETH in DAI
-    function _daiWETH() internal pure returns(uint256 price) {
+    function _daiWETH() internal view returns(uint256) {
         (   ,
-        price,
+        int256 price,
             ,
             ,
         ) = dETHFeed.latestRoundData();
+        return uint256(price);
     }
 
     /// @return price the price of 1 WETH in USDC
-    function _usdcWETH() internal pure returns(uint256 price) {
+    function _usdcWETH() internal view returns(uint256) {
         (   ,
-        price,
+        int256 price,
             ,
             ,
         ) = uETHFeed.latestRoundData();
+        return uint256(price);
     }
 
     /// @dev provides how much DAI is able to be borrowed based on unutilized collateral
-    function _availableDAI() internal pure returns(uint256 availableDAI) {
-        uint256 freeCollateral = users[msg.sender].wethDeposit - _totalDebt();
+    function _availableDAI() internal view returns(uint256 availableDAI) {
+        uint256 freeCollateral = users[msg.sender].wethDeposit - _totalDebt(msg.sender);
         
         availableDAI = WMul.wmul(freeCollateral, _daiWETH());
     }
 
     /// @dev provides how much USDC is able to be borrowed based on unutilized collateral
-    function _availableUSDC() internal pure returns(uint256 availableUSDC) {
-        uint256 freeCollateral = users[msg.sender].wethDeposit - _totalDebt();
+    function _availableUSDC() internal view returns(uint256 availableUSDC) {
+        uint256 freeCollateral = users[msg.sender].wethDeposit - _totalDebt(msg.sender);
         availableUSDC = WMul.wmul(freeCollateral, _usdcWETH());
     }
 
     /// @dev provides how much an amount of DAI is worth in WETH
-    function _dai2WETH(uint256 amount) internal pure returns(uint256 weth) {
+    function _dai2WETH(uint256 amount) internal view returns(uint256 weth) {
         weth = WDiv.wdiv(amount, _daiWETH());
     }
 
     /// @dev provides how much an amount of USDC is worth in WETH
-    function _usdc2WETH(uint256 amount) internal pure returns(uint256 weth) {
+    function _usdc2WETH(uint256 amount) internal view returns(uint256 weth) {
         weth = WDiv.wdiv(amount, _usdcWETH());
     }
 
     /// @dev provides value of 1 DAI in USDC
-    function _daiUSDC() internal pure returns(uint256 price) {
+    function _daiUSDC() internal view returns(uint256 price) {
         price = WDiv.wdiv(_daiWETH(), _usdcWETH());
     }
 
 
-    function _totalDebt() internal pure returns(uint256 totalDebt) {
-        totalDebt = _usdc2WETH((users[msg.sender].daiDebt * _daiUSDC) + (users[msg.sender].usdcDebt * 10**12));
+    function _totalDebt(address user) internal view returns(uint256 totalDebt) {
+        uint256 debt = _usdc2WETH((users[user].daiDebt * _daiUSDC()) + (users[user].usdcDebt * 10**12));
+        totalDebt = _usdc2WETH(debt);
     }
     
     function deposit(uint256 amount) external {
         users[msg.sender].wethDeposit += amount;
-        iWETH.safeTransferFrom(msg.sender, this, amount);
+        iWETH.safeTransferFrom(msg.sender, address(this), amount);
         emit Deposit(msg.sender, amount);
     }
 
     function borrowDai(uint256 amount) external {
         require(amount <= _availableDAI(), "Insufficient collateral");
         users[msg.sender].daiDebt += amount;
-        iDAI.transfer(msg.sender, amount);
+        iDAI.safeTransfer(msg.sender, amount);
         emit Borrow(msg.sender, DAI, amount);
     }
 
     function borrowUSDC(uint256 amount) external {
         require(amount <= _availableUSDC(), "Insufficient collateral");
         users[msg.sender].usdcDebt += amount;
-        iUSDC.transfer(msg.sender, amount);
+        iUSDC.safeTransfer(msg.sender, amount);
         emit Borrow(msg.sender, USDC, amount);
+    }
+
+    function repayDAI(uint256 amount) external {
+        require(users[msg.sender].daiDebt >= amount, "debt exceeds payment");
+        users[msg.sender].daiDebt -= amount;
+        iDAI.safeTransferFrom(msg.sender, address(this), amount);
+        emit Repay(msg.sender, amount, users[msg.sender].daiDebt);
+    }
+
+    function repayUSDC(uint256 amount) external {
+        require(users[msg.sender].usdcDebt >= amount, "debt exceeds payment");
+        users[msg.sender].usdcDebt -= amount;
+        iUSDC.safeTransferFrom(msg.sender, address(this), amount);
+        emit Repay(msg.sender, amount, users[msg.sender].usdcDebt);
+    }
+
+    function withdraw(uint256 amount) external {
+        require(users[msg.sender].wethDeposit - _totalDebt(msg.sender) >= amount, "request exceeds available collateral");
+        users[msg.sender].wethDeposit -= amount;
+        iWETH.safeTransfer(msg.sender, amount);
+        emit Withdraw(msg.sender, amount);
+    }
+
+    function ratio(address user) view external returns(uint256 userRatio){
+        userRatio = WDiv.wdiv(users[user].wethDeposit, _totalDebt(user));
+    }
+
+    function liquidate(address user) external onlyOwner {
+        require(ratio(user) < 1, "specified user can't be liquidated");
+        uint256 lqdtdWETH = users[user].wethDeposit;
+        users[user].wethDeposit = 0;
+        users[user].usdcDebt = 0;
+        users[user].daiDebt = 0;
+        iWETH.safeTransfer(owner, lqdtdWETH);
     }
 
 }
