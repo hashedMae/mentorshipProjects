@@ -6,7 +6,7 @@ import "src/CollateralizedVault.sol";
 import "../lib/yield-utils-v2/contracts/math/WMul.sol";
 import "../lib/yield-utils-v2/contracts/math/WDiv.sol";
 import "../lib/yield-utils-v2/contracts/token/IERC20.sol";
-import "../lib/chainlink.git/contracts/src/v0.6/interfaces/AggregatorV3Interface.sol";
+import "../lib/chainlink.git/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
 contract ZeroState is Test {
 
@@ -38,9 +38,9 @@ contract ZeroState is Test {
         vm.prank(iceman);
         vault = new CollateralizedVault(IERC20(DAI), IERC20(WETH), IERC20(USDC), AggregatorV3Interface(0x22B58f1EbEDfCA50feF632bD73368b2FdA96D541), AggregatorV3Interface(0x64EaC61A2DFda2c3Fa04eED49AA33D021AeC8838));
 
-        deal(WETH, maverick, 10e18);
-        deal(WETH, phoenix, 10e18);
-        deal(WETH, rooster, 10e18);
+        deal(WETH, maverick, 10000e18);
+        deal(WETH, phoenix, 10000e18);
+        deal(WETH, rooster, 10000e18);
 
         
         deal(DAI, iceman, 1000000*10*18);
