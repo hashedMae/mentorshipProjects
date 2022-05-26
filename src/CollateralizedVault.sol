@@ -5,7 +5,7 @@ import "../lib/yield-utils-v2/contracts/math/WDiv.sol";
 import "../lib/yield-utils-v2/contracts/math/WMul.sol";
 import "../lib/yield-utils-v2/contracts/token/IERC20.sol";
 import "../lib/yield-utils-v2/contracts/token/TransferHelper.sol";
-import "../lib/chainlink.git/contracts/src/v0.6/interfaces/AggregatorV3Interface.sol";
+import "../lib/chainlink.git/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "../lib/yield-utils-v2/contracts/access/Ownable.sol";
 
 /// https://github.com/yieldprotocol/mentorship2022/issues/5
