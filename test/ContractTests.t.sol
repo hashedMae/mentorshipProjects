@@ -1,12 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "../lib/forge-std//src/Test.sol";
+import "forge-std/Test.sol";
 import "src/CollateralizedVault.sol";
-import "../lib/yield-utils-v2/contracts/math/WMul.sol";
-import "../lib/yield-utils-v2/contracts/math/WDiv.sol";
-import "../lib/yield-utils-v2/contracts/token/IERC20.sol";
-import "../lib/chainlink.git/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
+import "yield-utils/contracts/token/IERC20.sol";
 
 contract ZeroState is Test {
 
@@ -36,7 +33,7 @@ contract ZeroState is Test {
 
     function setUp() public {
         vm.prank(iceman);
-        vault = new CollateralizedVault(IERC20(DAI), IERC20(WETH), IERC20(USDC), AggregatorV3Interface(0x22B58f1EbEDfCA50feF632bD73368b2FdA96D541), AggregatorV3Interface(0x64EaC61A2DFda2c3Fa04eED49AA33D021AeC8838));
+        vault = new CollateralizedVault(DAI, WETH, USDC, AggregatorV3Interface(0x22B58f1EbEDfCA50feF632bD73368b2FdA96D541), AggregatorV3Interface(0x64EaC61A2DFda2c3Fa04eED49AA33D021AeC8838));
 
         deal(WETH, maverick, 10000e18);
         deal(WETH, phoenix, 10000e18);
@@ -50,15 +47,17 @@ contract ZeroState is Test {
 
 contract ZeroStateTest is ZeroState {
 
+    function testBalance() public {
+        assertEq(iWETH.balanceOf(maverick), 10000e18);
+    }
+
     function testDeposit(uint256 amount) public {
         vm.startPrank(maverick);
-        vm.assume(amount <= 1e18);
+        vm.assume(amount <= 100e18);
         iWETH.approve(address(vault), 2^255);
         vault.deposit(amount);
-        (uint256 wethDeposit,
-            ,
-            ) = vault.Users(maverick);
-        assertEq(wethDeposit, amount);
+        
+        assertEq(vault.Deposits(maverick, WETH), amount);
     }
 
     function testDepositEmit(uint256 amount) public {
