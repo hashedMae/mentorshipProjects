@@ -46,7 +46,7 @@ contract ZeroState is Test {
         iUSDC.approve(address(vault), 2**256-1);
         vault.stableDeposit(1000000e18, 1000000e6);*/
         vm.stopPrank();
-        
+
     }
 }
 /** 

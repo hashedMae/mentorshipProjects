@@ -31,7 +31,6 @@ contract DepositState is ZeroState {
         vm.stopPrank();
 
         
-        console.log("MAX BORROW", WMul.wmul(vault.Deposits(maverick, WETH), vault.daiWETH()));
-        console.log("IS BORROWING", 100000e18);
+        
     }
 }

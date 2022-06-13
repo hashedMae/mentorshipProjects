@@ -19,7 +19,7 @@ contract BorrowStateTest is BorrowState {
 
     function testRepayUSDCDebt(uint256 amount) public {
         amount = bound(amount, 1, vault.Debts(phoenix, USDC));
-        uint256 startBalance = iUSDC.balanceOf(maverick);
+        uint256 startBalance = iUSDC.balanceOf(phoenix);
         uint256 startDebt = vault.Debts(phoenix, USDC);
         vm.startPrank(phoenix);
         iUSDC.approve(address(vault), 2**256-1);

@@ -9,8 +9,6 @@ contract BorrowState is DepositState {
         super.setUp();
 
         vm.prank(maverick);
-        console.log("MAX BORROW", WMul.wmul(vault.Deposits(maverick, WETH), vault.daiWETH()));
-        console.log("IS BORROWING", 100000e18);
         vault.borrowDAI(100000e18);
         vm.prank(phoenix);
         vault.borrowUSDC(100000e6);

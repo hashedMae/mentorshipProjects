@@ -68,8 +68,8 @@ contract CollateralizedVault is Ownable {
         iUSDC.safeTransferFrom(owner, address(this), usdcIn);
     }
 
-    /// @return price the price of 1 WETH in DAI
-    function _daiWETH() internal view returns(uint256) {
+    /// @return price the price of 1 DAI in WETH
+    function _daiPrice() internal view returns(uint256) {
         (   ,
         int256 price,
             ,
@@ -78,29 +78,30 @@ contract CollateralizedVault is Ownable {
         return uint256(price);
     }
 
-    function daiWETH() external view returns(uint256) {
-        return _daiWETH();
+    function daiPrice() external view returns(uint256) {
+        return _daiPrice();
     }
 
-    /// @return price the price of 1 WETH in USDC
-    function _usdcWETH() internal view returns(uint256) {
-        (   ,
+    /// @return price the price of 1 USDC in WETH
+    function _usdcPrice() internal view returns(uint256) {
+        (   /*uint80 roundID*/,
         int256 price,
-            ,
-            ,
+            /*uint startedAt*/,
+            /*uint timeStam*/,
+            /*uint80 answeredInRound*/
         ) = uETHFeed.latestRoundData();
         return uint256(price);
     }
 
-    function usdcWETH() external view returns(uint256) {
-        return _usdcWETH();
+    function usdcPrice() external view returns(uint256) {
+        return _usdcPrice();
     }
 
     /// @dev provides how much DAI is able to be borrowed based on unutilized collateral
     function _availableDAI(address user) internal view returns(uint256) {
         uint256 freeCollateral = Deposits[user][WETH] - _totalDebt(user);
         
-        return WMul.wmul(freeCollateral, _daiWETH());
+        return WDiv.wdiv(freeCollateral, _daiPrice());
     }
 
     function availableDAI(address user) external view returns(uint256) {
@@ -110,7 +111,7 @@ contract CollateralizedVault is Ownable {
     /// @dev provides how much USDC is able to be borrowed based on unutilized collateral
     function _availableUSDC(address user) internal view returns(uint256) {
         uint256 freeCollateral = Deposits[user][WETH] - _totalDebt(user);
-        return WMul.wmul(freeCollateral, _usdcWETH());
+        return WDiv.wdiv(freeCollateral, _usdcPrice());
     }
 
     function availableUSDC(address user) internal view returns(uint256) {
@@ -118,23 +119,24 @@ contract CollateralizedVault is Ownable {
     }
 
     /// @dev provides how much an amount of DAI is worth in WETH
-    function _dai2WETH(uint256 amount) internal view returns(uint256 weth) {
-        weth = WDiv.wdiv(amount, _daiWETH());
+    function _dai2WETH(uint256 amount) internal view returns(uint256) {
+        return WMul.wmul(amount, _daiPrice());
     }
 
     /// @dev provides how much an amount of USDC is worth in WETH
-    function _usdc2WETH(uint256 amount) internal view returns(uint256 weth) {
-        weth = WDiv.wdiv(amount, _usdcWETH());
+    function _usdc2WETH(uint256 amount) internal view returns(uint256) {
+        return WMul.wmul(amount, _usdcPrice());
     }
 
     /// @dev provides value of 1 DAI in USDC
     function _daiUSDC() internal view returns(uint256 price) {
-        price = WDiv.wdiv(_daiWETH(), _usdcWETH());
+        price = WDiv.wdiv(_daiPrice(), _usdcPrice());
     }
 
-    /// @dev combines a Users DAI and USDC debts and returns it denominated in WETH
+    /// @notice combines a Users DAI and USDC debts and returns it denominated in WETH
+    /// @dev because USDC is six decimals, 12 decimals are added to the USDC/WETH amount befoe adding the DAI/WETH amount
     function _totalDebt(address user) internal view returns(uint256) {
-        return _dai2WETH(Debts[user][DAI]) + _usdc2WETH(Debts[user][USDC]);
+       return _dai2WETH(Debts[user][DAI]) + (_usdc2WETH(Debts[user][USDC])*10**12);
     }
 
     function totalDebt(address user) external view returns(uint256) {

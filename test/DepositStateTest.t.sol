@@ -8,7 +8,7 @@ contract DespositStateTest is DepositState {
     using stdStorage for StdStorage;
 
     function testborrowDAI(uint256 amount) public {
-        amount = bound(amount, 1000, WMul.wmul(vault.Deposits(maverick, WETH), vault.daiWETH()));
+        amount = bound(amount, 1000, WMul.wmul(vault.Deposits(maverick, WETH), vault.daiPrice()));
         uint256 daiPreBalance = iDAI.balanceOf(maverick);
         vm.prank(maverick);
         vault.borrowDAI(amount);
@@ -17,7 +17,7 @@ contract DespositStateTest is DepositState {
     }
 
     function testBorrowUSDC(uint256 amount) public {
-        amount = bound(amount, 1000, WMul.wmul(vault.Deposits(phoenix, WETH), vault.usdcWETH()));
+        amount = bound(amount, 1000, WMul.wmul(vault.Deposits(phoenix, WETH), vault.usdcPrice()));
         uint256 usdcPreBalance = iUSDC.balanceOf(phoenix);
         vm.prank(phoenix);
         vault.borrowUSDC(amount);
@@ -26,7 +26,7 @@ contract DespositStateTest is DepositState {
     }
 
     function testBorrowDAIEmit(uint256 amount) public {
-        amount = bound(amount, 1000, WMul.wmul(vault.Deposits(maverick, WETH), vault.daiWETH()));
+        amount = bound(amount, 1000, WMul.wmul(vault.Deposits(maverick, WETH), vault.daiPrice()));
         vm.expectEmit(true, false, false, true);
         emit Borrow(maverick, amount);
         vm.prank(maverick);
@@ -34,7 +34,7 @@ contract DespositStateTest is DepositState {
     }
 
     function testBorrowUSDCEmit(uint256 amount) public {
-        amount = bound(amount, 1000, WMul.wmul(vault.Deposits(phoenix, WETH), vault.usdcWETH()));
+        amount = bound(amount, 1000, WMul.wmul(vault.Deposits(phoenix, WETH), vault.usdcPrice()));
         vm.expectEmit(true, false, false, true);
         emit Borrow(phoenix, amount);
         vm.prank(phoenix);
@@ -60,30 +60,24 @@ contract DespositStateTest is DepositState {
     }
 
     function testLiquidateDAIDebt() public {
-        uint256 debt= WMul.wmul(vault.Deposits(phoenix,DAI), vault.daiWETH()) + 1e18;
+        uint256 debt= WMul.wmul(vault.Deposits(phoenix,DAI), vault.daiPrice()) + 1e18;
         stdstore
             .target(address(vault))
             .sig(vault.Debts.selector)
             .with_key(phoenix)
             .with_key(DAI)
             .checked_write(debt);
-        console.log("PHOENIX DEBT AFTER MANIPULATION ", vault.Debts(phoenix, DAI));
         uint256 phoenixDeposit = vault.Deposits(phoenix, WETH);
-        console.log("PHOENIX deposit BEFORE LIQUIDATION", phoenixDeposit);
         uint256 preBalance = iWETH.balanceOf(iceman);
-        console.log("ICEMAN PREBALANCE", preBalance);
         vm.prank(iceman);
         vault.liquidate(phoenix); 
-        console.log("SHOULD BE ZERO ", vault.Debts(phoenix, DAI));
-        console.log("SHOULD BE ZERO ", vault.Deposits(phoenix, WETH));
-        console.log("ICEMAN WETH AFTER LIQUIDATING", iWETH.balanceOf(iceman));
         assertEq(vault.Debts(phoenix, DAI), 0);
         assertEq(vault.Deposits(phoenix, WETH), 0);
         assertEq(preBalance + phoenixDeposit, iWETH.balanceOf(iceman)); 
     }
 
     function testLiquidateUSDC() public {
-        uint256 debt= WMul.wmul(vault.Deposits(rooster,USDC), vault.usdcWETH()) + 1e6;
+        uint256 debt= WMul.wmul(vault.Deposits(rooster,USDC), vault.usdcPrice()) + 1e6;
         stdstore 
             .target(address(vault))
             .sig(vault.Debts.selector)
