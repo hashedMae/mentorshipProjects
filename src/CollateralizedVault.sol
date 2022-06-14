@@ -5,19 +5,23 @@ import "yield-utils/contracts/math/WDiv.sol";
 import "yield-utils/contracts/math/WMul.sol";
 import "yield-utils/contracts/token/IERC20.sol";
 import "yield-utils/contracts/token/TransferHelper.sol";
-import "chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "yield-utils/contracts/access/Ownable.sol";
+import "yield-utils/contracts/access/AccessConsol.sol";
 
-/// https://github.com/yieldprotocol/mentorship2022/issues/5
+import "chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
-contract CollateralizedVault is Ownable {
+
+/// https://github.com/yieldprotocol/mentorship2022/issues/6
+
+contract CollateralizedVault is AccessControl {
     
     using TransferHelper for IERC20;
+    using Roles for Roles.Role;
 
-    /// mainnet 0x6B175474E89094C44Da98b954EedeAC495271d0F
-    /// rinkeby 0x0165b733e860b1674541BB7409f8a4743A564157
-    IERC20 iDAI;
-    address DAI;
+    event Deposit(address indexed user, uint256 amount);
+    event Borrow(address indexed user, uint256 amount);
+    event Repay(address indexed user, uint256 repaid, uint256 remaining);
+    event Withdraw(address indexed user, uint256 amount);
 
     /// mainnet 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2
     /// rinkeby 0xDf032Bc4B9dC2782Bb09352007D4C57B75160B15
@@ -29,73 +33,103 @@ contract CollateralizedVault is Ownable {
     IERC20 iUSDC;
     address USDC;
 
-    /// mainnet 0x773616E4d11A78F511299002da57A0a94577F1f4
-    /// rinkeby 0x74825DbC8BF76CC4e9494d0ecB210f676Efa001D
-    /// @dev DAI/ETH Price Oracle
-    AggregatorV3Interface dETHFeed;
+    /// mainnet 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599
+    /// rinkeby 0xb4f6777e54788D261ec639bDedce6800cA07a744
+    IERC20 iWBTC;
+    address WBTC;
+    
     /// mainnet 0x986b5E1e1755e3C2440e960477f25201B0a8bbD4
     /// rinkeby 0xdCA36F27cbC4E38aE16C4E9f99D39b42337F6dcf
     /// @dev USDC/ETH Price Oracle
-    AggregatorV3Interface uETHFeed;
+    /// AggregatorV3Interface uETHFeed;
 
-    /// had been stored in a struct but changed after Alberto suggested nested mappings in Slack
-    /// @dev nested mapping for tracking user debts
+    ///mainnet 0xdeb288F737066589598e9214E782fa5A8eD689e8
+    ///rinkeby 0x2431452A0010a43878bF198e170F6319Af6d27F4
+    ///@dev BTC/ETH Price Oracle
+    /// AggregatorV3Interface bETHFeed;
+
+    /// @dev nested mapping for tracking user debts, first address is user address, second is token address
+    /// (mapping(user => mapping(token => debt)))
     mapping(address => mapping(address => uint256)) public Debts;
 
-    /// @dev nested mapping for tracking user deposits
+    /// @dev nested mapping for tracking user deposits, first address is user address, second is token address
+    /// mapping(user => mapping(token => deposit))
     mapping(address => mapping(address => uint256)) public Deposits;
 
-    bool started;
+    /// @dev mapping for storage of Chainlink Oracle interfaces
+    /// @dev Token address pairings used as keys (ex mapping(BTC => mapping(ETH => AggregatorV3Interface)))
+    mapping(address => mapping(address => AggregatorV3Interface)) public Oracles;
 
-    event Deposit(address indexed user, uint256 amount);
-    event Borrow(address indexed user, uint256 amount);
-    event Repay(address indexed user, uint256 repaid, uint256 remaining);
-    event Withdraw(address indexed user, uint256 amount);
+    /// @dev mapping for storing the maximum LTV of a collateral token
+    mapping(address => uint256) public collateralRatios;
 
-    constructor (address dai_, address weth_, address usdc_, AggregatorV3Interface dETH_, AggregatorV3Interface uETH_) {
-        DAI = dai_;
-        iDAI = IERC20(dai_);
+    address public collateralTokens[];
+
+    bytes4 public constant VAULT_OWNER = bytes4(keccak256("ownerDeposit(uint256)"));
+    bytes4 public constant COLLATERAL_ADMIN = bytes4(keccak256("addCollateral(address, address, AggregatorV3Interface)"));
+    bytes4 public constant RATIO_ADMIN = bytes4(keccak256("setRatio(address, uint256)"));
+
+    
+
+    constructor (
+        address weth_, 
+        address usdc_, 
+        address wbtc_, 
+        AggregatorV3Interface usdcETH_, 
+        AggregatorV3Interface btcETH_
+        uint256 usdcRatio_,
+        uint256 btcRatio_) {
         WETH = weth_;
         iWETH = IERC20(weth_);
         USDC = usdc_;
         iUSDC = IERC20(usdc_);
-        dETHFeed = dETH_;
-        uETHFeed = uETH_;
+        WBTC = wbtc_;
+        iWBTC = IERC20(wbtc_);
+        Oracles[USDC][WETH] = usdcETH_;
+        Oracles[WBTC][WETH] = btcETH_;
+        collateralTokens = [usdc_, wbtc_];
+        collateralRatios[usdc_] = usdcRatio_;
+        collateralRatios[wbtc_] = wbtcRatio_;
     }
 
-    function stableDeposit(uint256 daiIn, uint256 usdcIn) external onlyOwner {
-        iDAI.safeTransferFrom(owner, address(this), daiIn);
-        iUSDC.safeTransferFrom(owner, address(this), usdcIn);
+/***
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+    Admin Functions
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+ */
+
+    function _ownerDeposit(uint256 wethIn) external {
+        iWETH.safeTransferFrom(msg.sender, address(this), wethIn);
     }
 
-    /// @return price the price of 1 DAI in WETH
-    function _daiPrice() internal view returns(uint256) {
-        (   ,
-        int256 price,
-            ,
-            ,
-        ) = dETHFeed.latestRoundData();
-        return uint256(price);
+    function _addCollateral(address tokenA_, address tokenB_, AggregatorV3Interface oracle_) internal {
+
     }
 
-    function daiPrice() external view returns(uint256) {
-        return _daiPrice();
-    }
+/***
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+    Pricing/Vault Ratio functions
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+ */
 
-    /// @return price the price of 1 USDC in WETH
-    function _usdcPrice() internal view returns(uint256) {
+    /// @return price the price of tokenA denominated in tokenB
+    /// @param _tokenA address for the token that's being inquired about
+    /// @param _tokenB address for the token that the answer will be denominated in
+    function _price(address _tokenA, address _tokenB) internal view returns(uint256) {
+        AggregatorV3Interface iOracle = Oracles[tokenA][tokenB];
         (   /*uint80 roundID*/,
         int256 price,
             /*uint startedAt*/,
             /*uint timeStam*/,
             /*uint80 answeredInRound*/
-        ) = uETHFeed.latestRoundData();
+        ) = iOracle.latestRoundData();
         return uint256(price);
     }
 
-    function usdcPrice() external view returns(uint256) {
-        return _usdcPrice();
+    function price(address tokenA, address tokenB) public view returns(uint256) {
+        return _price(tokenA, tokenB);
     }
+
 
     /// @dev provides how much DAI is able to be borrowed based on unutilized collateral
     function _availableDAI(address user) internal view returns(uint256) {
@@ -142,6 +176,12 @@ contract CollateralizedVault is Ownable {
     function totalDebt(address user) external view returns(uint256) {
         return _totalDebt(user);
     }
+
+/***
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+    User Functions
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+ */
     
     /// @notice allows a user to deposit WETH for use as collateral
     function deposit(uint256 amount) external {
