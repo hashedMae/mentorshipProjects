@@ -5,20 +5,7 @@ import "./ZeroState.t.sol";
 
 contract ZeroStateTest is ZeroState {
 
-    function testOwnerStableDeposit(uint256 daiIn, uint256 usdcIn) public{
-        daiIn = bound(daiIn, 1e18, 1000000e18);
-        usdcIn = bound(usdcIn, 1e6, 1000000e6);
-
-        vm.startPrank(iceman);
-        iDAI.approve(address(vault), 2**256-1);
-        iUSDC.approve(address(vault), 2**256-1);
-        vault.stableDeposit(daiIn, usdcIn);
-        vm.stopPrank;
-
-        assertEq(iDAI.balanceOf(address(vault)), daiIn);
-        assertEq(iUSDC.balanceOf(address(vault)), usdcIn);
-
-    }
+    
 
     function testDeposit(uint256 amount) public {
         amount = bound(amount, 10000, 10000e18);
@@ -90,12 +77,7 @@ contract ZeroStateTest is ZeroState {
         vault.liquidate(maverick);
     }
 
-    function testCannotDepositStablesUnlessOwner(uint256 amount) public {
-        vm.assume(amount>1);
-        vm.expectRevert("Ownable: caller is not the owner");
-        vm.prank(maverick);
-        vault.stableDeposit(amount, amount);
-    }
+    
 
 }
 

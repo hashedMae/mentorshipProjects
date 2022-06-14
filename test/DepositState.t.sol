@@ -27,7 +27,9 @@ contract DepositState is ZeroState {
         vm.startPrank(iceman);
         iDAI.approve(address(vault), 2**256-1);
         iUSDC.approve(address(vault), 2**256-1);
-        vault.stableDeposit(1e30, 1e18);
+        ///vault.stableDeposit(1e30, 1e18);
+        iDAI.transfer(address(vault), 1e30);
+        iUSDC.transfer(address(vault), 1e18);
         vm.stopPrank();
 
         
