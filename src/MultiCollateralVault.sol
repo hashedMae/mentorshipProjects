@@ -307,7 +307,7 @@ contract MultiCollateralVault is AccessControl {
 -------------------------------------------------------------------------------------------------------------------------------------------------------------
  */
     function _decimalsDifference(address token) internal view returns(uint8){
-        return IERC20Metadata(token).decimals();
+        return 18 - IERC20Metadata(token).decimals();
     }
 
 }
