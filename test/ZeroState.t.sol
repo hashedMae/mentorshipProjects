@@ -51,10 +51,11 @@ contract ZeroState is Test {
 
     AggregatorV3Interface oBTC = AggregatorV3Interface(0xdeb288F737066589598e9214E782fa5A8eD689e8);
     AggregatorV3Interface oUSDC = AggregatorV3Interface(0x986b5E1e1755e3C2440e960477f25201B0a8bbD4);
+    AggregatorV3Interface oZero = AggregatorV3Interface(address(0));
 
-    bytes4 public constant LIQUIDATOR = bytes4(keccak256("_liquidate(address)"));
-    bytes4 public constant COLLATERAL_ADMIN = bytes4(keccak256("_addCollateral(address, address)"));
-    bytes4 public constant RATIO_ADMIN = bytes4(keccak256("_setRatio(address, uint256)"));
+    bytes4 LIQUIDATOR = vault.liquidate.selector;
+    bytes4 COLLATERAL_ADMIN = vault.addCollateral.selector;
+    bytes4 RATIO_ADMIN = vault.setRatio.selector;
     
     event Deposit(address indexed user, address indexed token, uint256 amount);
     event Borrow(address indexed user, uint256 amount);
@@ -78,5 +79,7 @@ contract ZeroState is Test {
         vm.stopPrank();
         
         deal(WETH, address(vault), 1e30);
+        deal(USDC, address(vault), 1e18);
+        deal(WBTC, address(vault), 1e30);
     }
 }

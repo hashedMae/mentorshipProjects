@@ -64,11 +64,6 @@ contract MultiCollateralVault is AccessControl {
 
     address[] public Collaterals;
 
-    bytes4 public constant LIQUIDATOR = bytes4(keccak256("liquidate(address)"));
-    bytes4 public constant COLLATERAL_ADMIN = bytes4(keccak256("addCollateral(address, Address)"));
-    bytes4 public constant RATIO_ADMIN = bytes4(keccak256("setRatio(address, uint256)"));
-
-    
     ///@param WETH_ address for the WETH contract
     constructor (address WETH_) {
         WETH = WETH_;
@@ -79,7 +74,7 @@ contract MultiCollateralVault is AccessControl {
     Admin Functions
 -------------------------------------------------------------------------------------------------------------------------------------------------------------
  */
-    function addCollateral(address token, address oracle) external auth {
+    function addCollateral(address token, AggregatorV3Interface oracle) external auth {
         _addCollateral(token, oracle);
     }
 
@@ -92,16 +87,18 @@ contract MultiCollateralVault is AccessControl {
     }
 
     /// @dev checks to see if a token is currently accepted as collteral and if it has been added but not yet live cause there is no ratio set yet
-    function _addCollateral(address token_, address oracle_) internal {
+    function _addCollateral(address token_, AggregatorV3Interface oracle_) internal {
         require(token_ != address(0), "token cannot be zero address");
-        require(oracle_ != address(0), "oracle cannot be zero address");
-
-        for(uint256 i = 0; i < Collaterals.length; i++) {
-            require(Collaterals[i] != token_ && Ratios[token_] == 0, "token has already been added as collateral");
-            require(Collaterals[i] != token_ && Ratios[token_] > 0, "token added but ratio not set");
+        require(oracle_ != AggregatorV3Interface(address(0)), "oracle cannot be zero address");
+        if(Oracles[token_] == oracle_ && Ratios[token_] != 0) {
+            revert("token has already been added as collateral");
         }
-        Collaterals.push(token_);
-        Oracles[token_] = AggregatorV3Interface(oracle_);
+        if(Oracles[token_] == oracle_ && Ratios[token_] == 0)  {
+            revert("token added but ratio not set");
+        } else{
+            Collaterals.push(token_);
+            Oracles[token_] = oracle_;
+        }
     }
 
     /// @dev A token must be added to the list of accepted collateral before a ratio can be set for it
@@ -117,14 +114,17 @@ contract MultiCollateralVault is AccessControl {
     
     /// @notice allows authorized user to liquidate under collateralized Users
     function _liquidate(address user) internal {
-        require(_ltvRatio(user) < 1, "specified user can't be liquidated");
+        require(_ltvRatio(user) < _maxRatio(user), "specified user can't be liquidated");
         Debt[user] = 0;
-        for(uint256 i = 0; i < Collaterals.length; i++) {
-            uint256 amount = Deposits[user][Collaterals[i]];
-            Deposits[user][Collaterals[i]] = 0;
-            IERC20(Collaterals[i]).safeTransfer(msg.sender, amount);
+        address[] memory _collaterals = Collaterals;
+        uint128 _length = _collaterals.length:
+        for(uint128 i = 0; i < _length;) {
+            uint256 amount = Deposits[user][_collaterals[i]];
+            Deposits[user][_collaterals[i]] = 0;
+            IERC20(_collaterals[i]).safeTransfer(msg.sender, amount);
+            unchecked{i++;}
         }
-    }
+    } 
 
 /***
 -------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -172,12 +172,15 @@ contract MultiCollateralVault is AccessControl {
     /// @dev calculates the the ratioed value of a users deposits in ETH
     function _ratioedDeposits(address user) internal view returns(uint256) {
         uint256 ratioedValue;
-        for(uint256 i = 0; i < Collaterals.length; i++) {
+        address[] memory _collaterals = Collaterals;
+        uint128 _length = _collaterals.length;
+        for(uint128 i = 0; i < _length; ) {
             ratioedValue += RMul.rmul(
                 WMul.wmul(
-                Deposits[user][Collaterals[i]]*10**_decimalsDifference(Collaterals[i]),
-                _price(Collaterals[i])), 
-                Ratios[Collaterals[i]]);
+                Deposits[user][_collaterals[i]]*10**_decimalsDifference(_collaterals[i]),
+                _price(_collaterals[i])), 
+                Ratios[_collaterals[i]]);
+                unchecked{i++;}
         }
         return ratioedValue;
     }
@@ -185,8 +188,11 @@ contract MultiCollateralVault is AccessControl {
     
     function _totalDeposits(address user) internal view returns(uint256) {
         uint256 totalValue;
-        for(uint256 i = 0; i < Collaterals.length; i++){
-            totalValue += WMul.wmul(Deposits[user][Collaterals[i]]*10**_decimalsDifference(Collaterals[i]), _price(Collaterals[i]));
+        address[] memory _collaterals = Collaterals;
+        uint128 _length = _collaterals.length;
+        for(uint256 i = 0; i < _length;){
+            totalValue += WMul.wmul(Deposits[user][_collaterals[i]]*10**_decimalsDifference(_collaterals[i]), _price(_collaterals[i]));
+            unchecked{i++;}
         }
         return totalValue;
     }
@@ -213,20 +219,23 @@ contract MultiCollateralVault is AccessControl {
     function _adjustedLTV(address user, address token, uint256 amount) internal view returns(uint256) {
         uint256 ratioedValue;
         uint256 postBalance = Deposits[user][token] - amount;
-        for (uint256 i = 0; i < Collaterals.length; i++) {
-            if(Collaterals[i] == token) {
+        address[] memory _collaterals = Collaterals;
+        uint128 _length = _collaterals.length;
+        for (uint128 i = 0; i < _length;) {
+            if(_collaterals[i] == token) {
                 ratioedValue += RMul.rmul(
                     WMul.wmul(
-                    postBalance*10**_decimalsDifference(Collaterals[i]), 
-                    _price(Collaterals[i])), 
-                    Ratios[Collaterals[i]]);
+                    postBalance*10**_decimalsDifference(_collaterals[i]), 
+                    _price(_collaterals[i])), 
+                    Ratios[_collaterals[i]]);
             } else {
                 ratioedValue += RMul.rmul(
                     WMul.wmul(
-                    Deposits[user][Collaterals[i]]*10**_decimalsDifference(Collaterals[i]),
-                    _price(Collaterals[i])), 
-                    Ratios[Collaterals[i]]);
+                    Deposits[user][_collaterals[i]]*10**_decimalsDifference(_collaterals[i]),
+                    _price(_collaterals[i])), 
+                    Ratios[_collaterals[i]]);
             }
+            unchecked{i++;}
         }
         return WDiv.wdiv(ratioedValue, Debt[user]);
     }
