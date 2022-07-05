@@ -65,8 +65,8 @@ contract ZeroState is Test {
     function setUp() public virtual {
 
         for(uint256 i = 0; i < users.length; i++) {
-            deal(WBTC, users[i], 1000e18);
-            deal(USDC, users[i], 1000000e6);
+            deal(WBTC, users[i], 1e19);
+            deal(USDC, users[i], 1e12);
         }
 
         
@@ -78,7 +78,7 @@ contract ZeroState is Test {
         vault.grantRole(RATIO_ADMIN, dom);
         vm.stopPrank();
         
-        deal(WETH, address(vault), 1e30);
+        deal(WETH, address(vault), 1e50);
         deal(USDC, address(vault), 1e18);
         deal(WBTC, address(vault), 1e30);
     }

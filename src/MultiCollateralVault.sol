@@ -117,8 +117,8 @@ contract MultiCollateralVault is AccessControl {
         require(_ltvRatio(user) < _maxRatio(user), "specified user can't be liquidated");
         Debt[user] = 0;
         address[] memory _collaterals = Collaterals;
-        uint128 _length = _collaterals.length:
-        for(uint128 i = 0; i < _length;) {
+        uint256 _length = _collaterals.length;
+        for(uint256 i = 0; i < _length;) {
             uint256 amount = Deposits[user][_collaterals[i]];
             Deposits[user][_collaterals[i]] = 0;
             IERC20(_collaterals[i]).safeTransfer(msg.sender, amount);
@@ -144,8 +144,8 @@ contract MultiCollateralVault is AccessControl {
     }
 
     /// @notice provides how much WETH a user is currently able to borrow
-    function borrowingPower() view external returns(uint256) {
-        return _borrowingPower(msg.sender);
+    function borrowingPower(address user) view external returns(uint256) {
+        return _borrowingPower(user);
     }
 
     /// @notice provides a user's maximum combined loan to value ratio
@@ -156,6 +156,10 @@ contract MultiCollateralVault is AccessControl {
     /// @notice provides a user's current loan to value ratio
     function ltvRatio() view external returns(uint256) {
         return _ltvRatio(msg.sender);
+    }
+
+    function freeCollateral(address user, address token) view external returns(uint256) {
+        return _freeCollateral(user, token);
     }
     
     function _price(address token) internal view returns(uint256) {
@@ -173,8 +177,8 @@ contract MultiCollateralVault is AccessControl {
     function _ratioedDeposits(address user) internal view returns(uint256) {
         uint256 ratioedValue;
         address[] memory _collaterals = Collaterals;
-        uint128 _length = _collaterals.length;
-        for(uint128 i = 0; i < _length; ) {
+        uint256 _length = _collaterals.length;
+        for(uint256 i = 0; i < _length; ) {
             ratioedValue += RMul.rmul(
                 WMul.wmul(
                 Deposits[user][_collaterals[i]]*10**_decimalsDifference(_collaterals[i]),
@@ -189,7 +193,7 @@ contract MultiCollateralVault is AccessControl {
     function _totalDeposits(address user) internal view returns(uint256) {
         uint256 totalValue;
         address[] memory _collaterals = Collaterals;
-        uint128 _length = _collaterals.length;
+        uint256 _length = _collaterals.length;
         for(uint256 i = 0; i < _length;){
             totalValue += WMul.wmul(Deposits[user][_collaterals[i]]*10**_decimalsDifference(_collaterals[i]), _price(_collaterals[i]));
             unchecked{i++;}
@@ -201,16 +205,18 @@ contract MultiCollateralVault is AccessControl {
         return _ratioedDeposits(user) - Debt[user];
     }
 
-    /// @dev deposit values are calculated as wads and max ltv ratios are stored as rads so it was necessary to convert the deposit values to rad first
+    /// @notice calculates the maximum LTV ratio of a users vault
     function _maxRatio(address user) internal view returns(uint256){
-        return RDiv.rdiv(_ratioedDeposits(user)*10**9, _totalDeposits(user)*10**9);
+        return WDiv.wdiv(_ratioedDeposits(user), _totalDeposits(user));
     }
 
-    
+    /// @notice calcutates the current LTV ratio of a users vault
     function _ltvRatio(address user) internal view returns(uint256){
         return WDiv.wdiv(_ratioedDeposits(user), Debt[user]);
     }
 
+
+    /***
     /// @dev provides an adjusted ltv ratio in the case that the user were to withdraw an amount of collateral tokens
     /// @param user address for the user in question
     /// @param token address of the token being calculated for withdrawal
@@ -220,8 +226,8 @@ contract MultiCollateralVault is AccessControl {
         uint256 ratioedValue;
         uint256 postBalance = Deposits[user][token] - amount;
         address[] memory _collaterals = Collaterals;
-        uint128 _length = _collaterals.length;
-        for (uint128 i = 0; i < _length;) {
+        uint256 _length = _collaterals.length;
+        for (uint256 i = 0; i < _length; i++) {
             if(_collaterals[i] == token) {
                 ratioedValue += RMul.rmul(
                     WMul.wmul(
@@ -235,11 +241,37 @@ contract MultiCollateralVault is AccessControl {
                     _price(_collaterals[i])), 
                     Ratios[_collaterals[i]]);
             }
-            unchecked{i++;}
         }
         return WDiv.wdiv(ratioedValue, Debt[user]);
-    }
+    } */
 
+    /// @dev used to calculate how much of a deposited token is not currently being ultilized as collateral
+    function _freeCollateral(address user, address token) internal view returns(uint256) {
+        uint256 userDebt = Debt[user];
+        address[] memory _collaterals = Collaterals;
+        uint256 _length = _collaterals.length;
+        for (uint256 i = 0; i < _length; i++) {
+            if(_collaterals[i] != token && userDebt > 0) { 
+                uint256 rdep = RMul.rmul(
+                    WMul.wmul(
+                    Deposits[user][_collaterals[i]]*10**_decimalsDifference(_collaterals[i]),
+                    _price(_collaterals[i])), 
+                    Ratios[_collaterals[i]]);
+                if(userDebt > rdep){
+                    userDebt -= rdep;
+                } else {
+                    userDebt = 0;
+                }
+                ///unchecked{i++;}
+            }
+        }
+        if(userDebt > 0) {
+            return RMul.rmul(Deposits[user][token], Ratios[token]) - 
+                WDiv.wdiv(userDebt, _price(token))/10**_decimalsDifference(token);
+        } else{
+            return Deposits[user][token];
+        }
+    }
 /***
 -------------------------------------------------------------------------------------------------------------------------------------------------------------
     User Functions
@@ -287,7 +319,8 @@ contract MultiCollateralVault is AccessControl {
 
     /// @notice allows a user to withdraw token that are not currently utilized as collateral
     function _withdraw(address user, address token, uint256 amount) internal {
-        require(_adjustedLTV(user, token, amount) <= _maxRatio(user), "Position would liquidate");
+        ///require(_adjustedLTV(user, token, amount) <= _maxRatio(user), "Position would liquidate");
+        require(amount < _freeCollateral(user, token), "Position would liquidate");
         Deposits[user][token] -= amount;
         IERC20(token).safeTransfer(user, amount);
         emit Withdraw(user, token, amount);

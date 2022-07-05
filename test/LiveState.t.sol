@@ -15,6 +15,7 @@ contract LiveState is ZeroState {
         vault.addCollateral(WBTC, oBTC);
         vault.addCollateral(USDC, oUSDC);
         vm.stopPrank();
+        
         vm.startPrank(dom);
         vault.setRatio(WBTC, rBTC);
         vault.setRatio(USDC, rUSDC);
