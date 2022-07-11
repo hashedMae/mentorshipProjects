@@ -1,0 +1,5 @@
+ZeroStateTest:testAddCollateral() (gas: 84352)
+ZeroStateTest:testCannotAddExistingCollateral() (gas: 94200)
+ZeroStateTest:testCannotAddSameCollateralTwiceRatioNotSet() (gas: 87869)
+ZeroStateTest:testCannotAddZeroAddressAsCollateral() (gas: 15748)
+ZeroStateTest:testCannotAddZeroAddressAsOracleInterface() (gas: 17922)

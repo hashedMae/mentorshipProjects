@@ -8,8 +8,8 @@ contract LiveState is ZeroState {
     function setUp() public virtual override {
         super.setUp();
 
-        uint256 rBTC = 65e25;
-        uint256 rUSDC = 85e25;
+        uint96 rBTC = 65e25;
+        uint96 rUSDC = 85e25;
 
         vm.startPrank(zaku);
         vault.addCollateral(WBTC, oBTC);

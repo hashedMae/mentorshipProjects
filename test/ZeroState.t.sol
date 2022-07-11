@@ -32,13 +32,9 @@ contract ZeroState is Test {
 
     MultiCollateralVault public vault;
 
-    address WBTC = 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599;
-    address USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
-    address WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-
-    IERC20 iWETH = IERC20(WETH);
-    IERC20 iWBTC = IERC20(WBTC);
-    IERC20 iUSDC = IERC20(USDC);
+    IERC20 WBTC = IERC20(0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599);
+    IERC20 USDC = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
+    IERC20 WETH = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
 
     address rx78 = address(0x1);
     address zaku = address(0x2);
@@ -57,16 +53,16 @@ contract ZeroState is Test {
     bytes4 COLLATERAL_ADMIN = vault.addCollateral.selector;
     bytes4 RATIO_ADMIN = vault.setRatio.selector;
     
-    event Deposit(address indexed user, address indexed token, uint256 amount);
+    event Deposit(address indexed user, IERC20 indexed token, uint256 amount);
     event Borrow(address indexed user, uint256 amount);
     event Repay(address indexed user, uint256 repaid, uint256 remaining);
-    event Withdraw(address indexed user, address indexed token, uint256 amount);
+    event Withdraw(address indexed user, IERC20 indexed token, uint256 amount);
 
     function setUp() public virtual {
 
         for(uint256 i = 0; i < users.length; i++) {
-            deal(WBTC, users[i], 1e19);
-            deal(USDC, users[i], 1e12);
+            deal(address(WBTC), users[i], 1e19);
+            deal(address(USDC), users[i], 1e12);
         }
 
         
@@ -78,8 +74,8 @@ contract ZeroState is Test {
         vault.grantRole(RATIO_ADMIN, dom);
         vm.stopPrank();
         
-        deal(WETH, address(vault), 1e50);
-        deal(USDC, address(vault), 1e18);
-        deal(WBTC, address(vault), 1e30);
+        deal(address(WETH), address(vault), 1e50);
+        deal(address(USDC), address(vault), 1e18);
+        deal(address(WBTC), address(vault), 1e30);
     }
 }
