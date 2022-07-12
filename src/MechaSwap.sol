@@ -75,10 +75,10 @@ contract MechaSwap is ERC20{
 
     /// @notice used to add liquidity to an existing pool
     /// @param amountX the amount of token X that'll be added to the pool
-    /// @param amountY the amount of token Y that'll be added to the pool
     /// @return z the amount of LP tokens that'll be minted to the user
-    function addLiquidity(uint256 amountX, uint256 amountY) external returns(uint256 z){
-        require(x_0 / amountX == y_0 / amountY, "MechaSwap:Tokens not in required ratio");
+    function addLiquidity(uint256 amountX) external returns(uint256 z){
+        require(x_0 > 0, "MechaSwap:Pool not intiated");
+        uint256 amountY = amountX * y_0 / x_0;
         x_0 += amountX;
         y_0 += amountY;
         z = amountX / x_0;
@@ -93,7 +93,7 @@ contract MechaSwap is ERC20{
     /// @return xOut the amount of token X returned to the user 
     /// @return yOut the amount of token Y returned to the user
     function removeLiquidity(uint256 amountZ) external returns(uint256 xOut, uint256 yOut) {
-        uint256 zOwnership = WDiv.wdiv(amountZ, _totalSupply);
+        uint256 zOwnership = amountZ / _totalSupply;
         xOut = WMul.wmul(x_0, zOwnership);
         yOut = WMul.wmul(y_0, zOwnership);
         _burn(msg.sender, amountZ);
@@ -105,7 +105,7 @@ contract MechaSwap is ERC20{
     /// @notice used to swap an amount of token X for token Y
     /// @param xIn the amount of token X being sold to the pool
     /// @return yOut the amount of token Y being bought from the pool
-    function swapXforY(uint256 xIn) external returns(uint256 yOut){
+    function swapXForY(uint256 xIn) external returns(uint256 yOut){
         yOut = _price(xIn, x_0, y_0);
         x_0 += xIn;
         y_0 -= yOut;
@@ -132,10 +132,10 @@ contract MechaSwap is ERC20{
     /// @param bReserves rerserves for the token that is being bought from the pool
     /// @param bOut amount of token that is being bought from the pool
     function _price(uint256 aIn, uint256 aReserves, uint256 bReserves) internal view returns(uint256 bOut) {
+        require(x_0 > 0, "MechaSwap:Pool not intiated");
         require(aIn > 0, "MechaSwap: Insufficient Tokens In");
         uint256 numerator = aIn * bReserves;
         uint256 denominator = aIn + aReserves;
         bOut = numerator / denominator;
     }
-
 }
