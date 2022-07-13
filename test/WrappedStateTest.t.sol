@@ -8,23 +8,31 @@ contract WrappedStateTest is WrappedState {
     event Withdraw(address indexed caller, address indexed receiver, address indexed owner, uint256 assets, uint256 shares);
  
     function testWithdrawTokens(uint256 assets) public {
-        uint wringsPreBalance = wrings.balanceOf(sonic);
-        uint ringsPreBalance = rings.balanceOf(sonic);
-        uint256 maxAssets = wrings.convertToAssets(wringsPreBalance);
-        vm.assume(assets >= 1 && assets <= maxAssets);
+        uint wBal = wrings.balanceOf(sonic);
+        uint rBal = rings.balanceOf(sonic);
+        
+        
+        uint256 maxAssets = _convertToAssets(wBal);
+
+        assets = bound(assets, 1, maxAssets);
+
+        uint256 shares = _convertToShares(assets);
+
         vm.prank(sonic);
         wrings.withdraw(assets, sonic, sonic);
-        uint wringsPostBalance = wrings.balanceOf(sonic);
-        uint ringsPostBalance = rings.balanceOf(sonic);
-        bool success = wringsPostBalance == (wringsPreBalance - wrings.convertToShares(assets)) && ringsPostBalance == (ringsPreBalance + assets); 
-        assertEq(success, true);
+        assertEq(rings.balanceOf(sonic), rBal + assets);
+        assertEq(wrings.balanceOf(sonic), wBal - shares);
     }
 
     function testWithdrawEvent(uint256 assets) public {
-        uint wringsPreBalance = wrings.balanceOf(tails);
-        uint256 maxAssets = wrings.convertToAssets(wringsPreBalance);
-        vm.assume(assets >= 1 && assets <= maxAssets);
-        uint256 shares = wrings.convertToShares(assets);
+        uint wBal = wrings.balanceOf(tails);
+        
+        uint256 maxAssets = _convertToAssets(wBal);
+
+        assets = bound(assets, 1, maxAssets);
+
+        uint256 shares = _convertToShares(assets);
+
         vm.expectEmit(true, true, true, true);
         emit Withdraw(tails, tails, tails, assets, shares);
         vm.prank(tails);
@@ -32,21 +40,27 @@ contract WrappedStateTest is WrappedState {
     }
 
     function testRedeemTokens(uint256 shares) public {
-        uint256 wringsPreBalance = wrings.balanceOf(knuckles);
-        uint256 ringsPreBalance = rings.balanceOf(knuckles);
-        vm.assume(shares >= 1 && shares <= wringsPreBalance);
-        uint256 assets = wrings.convertToAssets(shares);
+        uint256 wBal = wrings.balanceOf(knuckles);
+        uint256 rBal = rings.balanceOf(knuckles);
+
+        shares = bound(shares, 1, wBal);
+
+        
+        uint256 assets = _convertToAssets(shares);
+
+        
         vm.prank(knuckles);
         wrings.redeem(shares, knuckles, knuckles);
-        uint256 wringsPostBalance = wrings.balanceOf(knuckles);
-        uint256 ringsPostBalance = rings.balanceOf(knuckles);
-        bool success = wringsPostBalance == wringsPreBalance - shares && ringsPostBalance == ringsPreBalance + assets;
-        assertEq(success, true);
+        
+        assertEq(rings.balanceOf(knuckles), rBal + assets);
+        assertEq(wrings.balanceOf(knuckles), wBal - shares);
     }
 
     function testRedeemEmit(uint256 shares) public {
-        vm.assume(shares >= 1 && shares <= wrings.balanceOf(eggman));
-        uint256 assets = wrings.convertToAssets(shares);
+        shares = bound(shares, 1, wrings.balanceOf(eggman));
+        
+        uint256 assets = _convertToAssets(shares);
+
         vm.expectEmit(true, true, true, true);
         emit Withdraw(eggman, eggman, eggman, assets, shares);
         vm.prank(eggman);
@@ -54,23 +68,26 @@ contract WrappedStateTest is WrappedState {
     }
 
     function testRedeemThreeParty(uint256 shares) public {
-        uint256 wringsPreBalance = wrings.balanceOf(eggman);
-        uint256 ringsPreBalance = rings.balanceOf(tails);
-        vm.assume(shares >= 1 && shares <= wringsPreBalance);
-        uint256 assets = wrings.convertToAssets(shares);
+        uint256 wBal = wrings.balanceOf(eggman);
+        uint256 rBal = rings.balanceOf(tails);
+
+        shares = bound(shares, 1, wBal);
+
+        uint256 assets = _convertToAssets(shares);
+
         vm.prank(eggman);
         rings.approve(sonic, 2**256-1);
         vm.prank(sonic);
         wrings.redeem(shares, tails, eggman);
-        uint256 wringsPostBalance = wrings.balanceOf(eggman);
-        uint256 ringsPostBalance = rings.balanceOf(tails);
-        bool success = wringsPostBalance == wringsPreBalance - shares && ringsPostBalance == ringsPreBalance + assets;
-        assertEq(success, true);
+        assertEq(wrings.balanceOf(eggman), wBal - shares);
+        assertEq(rings.balanceOf(tails), rBal + assets);
     }
     
     function testRedeemThreePartyEmit(uint256 shares) public {
-        vm.assume(shares >= 1 && shares <= wrings.balanceOf(eggman));
-        uint256 assets = wrings.convertToAssets(shares);
+        shares = bound(shares, 1, wrings.balanceOf(eggman));
+        
+        uint256 assets = _convertToAssets(shares);
+
         vm.expectEmit(true, true, true, true);
         emit Withdraw(sonic, tails, eggman, assets, shares);
          vm.prank(eggman);

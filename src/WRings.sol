@@ -5,22 +5,6 @@ pragma solidity ^0.8.0;
 /// @author hashedMae
 /// Math library for using wads with rads
 
-library RMath {
-
-    
-    function rmul(uint256 x, uint256 y) internal pure returns(uint256 z) {
-        z = x * y;
-        unchecked {z /= 10**27;}
-    }
-
-    function rdiv(uint256 x, uint256 y) internal pure returns(uint256 z) {
-        z = (x*10**27) / y;
-    }
-
-
-}
-
-
 pragma solidity ^0.8.13;
 
 import "./Rings.sol";
@@ -33,23 +17,21 @@ import "../lib/yield-utils-v2/contracts/token/TransferHelper.sol";
 
 /// @title WRings
 /// @author hashedMae
-/// @notice An ERC20 fractional wrapper for yield bearing tokens
+/// @notice A Yield Bearing Flash Loan Vault
 /// @dev Utilizes WMul and WDiv math libraries from Yield-Utils-V2. Will always round down to zero.
 
-contract WRings is ERC20,
-                   Ownable {
+contract WRings is ERC20, Ownable {
 
     using TransferHelper for IERC20;
-    using RMath for uint256;
-
-
-    IERC20 public immutable iRings;
-    uint256 public exchangeRate;
-
+    
     /// @notice Emitted whenever a user wraps tokens
     event Deposit(address indexed caller, address indexed owner, uint256 assets, uint256 shares);
     /// @notice Emitted whenever a user unwraps tokens
     event Withdraw(address indexed caller, address indexed receiver, address indexed owner, uint256 assets, uint256 shares);
+
+    IERC20 public immutable iRings;
+    uint256 public immutable fee = 1e16;
+   
 
     /// @param iRings_ ERC20 Interface for Rings token
     constructor(IERC20 iRings_) ERC20("WRings", "WRNG", 18) {
@@ -57,48 +39,134 @@ contract WRings is ERC20,
     }
 
     /// @return assetTokenAddress Contract address of token utilized by the vault
-    function asset() public view returns(address){
-        address assetTokenAddress = address(iRings);
-        return assetTokenAddress;
+    function asset() external view returns(address){
+        return address(iRings);
     }
 
     /// @return totalManagedAssets Balance of the asset token within the vault
-    function totalAssets() public view returns(uint256) {
-        uint256 totalManagedAssets = iRings.balanceOf(address(this));
-        return totalManagedAssets;
+    function totalAssets() external view returns(uint256) {
+        return _totalAssets();
     }
 
-    /// @notice Allows the owner to set the exchange rate
-    /// @dev uses 27 decimals of precision, and can be no greater than 1000000000000000000
-    /// @param exchangeRate_ New exchange rate
-    function setExchangeRate(uint256 exchangeRate_) external onlyOwner {
-        require(exchangeRate_ <= 100000000000000000 * 10 ** 27, "New rate is outside bounds");
-        exchangeRate = exchangeRate_;
+    /**
+     * @dev The amount of currency available to be lent.
+     * @param token The loan currency.
+     * @return The amount of `token` that can be borrowed.
+     */
+    function maxFlashLoan(address token) external view returns(uint256) {
+        require(token == address(iRings), "Token not available");
+        return _totalAssets();
     }
 
-    /// @notice The amount of shares to mint to a user for the asset token deposited under ideal conditions
-    /// @param assets Number of Rings tokens to deposit to the contract 
-    /// @return shares Number of vault shares minted to the user based on the exchange rate
-    function _convertToShares(uint256 assets) internal view returns(uint256 shares) {
-        shares = assets.rmul(exchangeRate);
+    /**
+     * @dev The fee to be charged for a given loan.
+     * @param token The loan currency.
+     * @param amount The amount of tokens lent.
+     * @return The amount of `token` to be charged for the loan, on top of the returned principal.
+     */
+    function flashFee(address token, uint256 amount) external view returns(uint256) {
+        return _flashFee(token, amount);
+    }
+    
+    /// @notice the amount of shares the Vault would exchange for the amount of assets provided under ideal conditions
+    /// @param assets the amount of assets to send to the vault
+    /// @return shares the amount of shares received under ideal conditions
+    function convertToShares(uint256 assets) external view returns(uint256){
+        return _convertToShares(assets);
     }
 
-    /// @notice Used to calculate the amount of an asset token to transfer to user for vault tokens burned under ideal conditions
-    /// @param shares Number of vault tokens to burn
-    /// @return assets Number of asset tokens to transfer to the user
-    function _convertToAssets(uint256 shares) internal view returns(uint256 assets) {
-        assets = shares.rdiv(exchangeRate);
+    /// @notice the amount of assets the Vault would exchange for stated shares under ideal conditions
+    /// @param shares the amount of shares being exchanged
+    /// @return assets the amount of assets received under ideal conditions
+    function convertToAssets(uint256 shares) external view returns(uint256){
+        return _convertToAssets(shares);
     }
 
-    function convertToShares(uint256 assets) external view returns(uint256 shares) {
-        shares = _convertToShares(assets);
+    /// @notice shows the max amount of assets that can be deposited for or by a user
+    /// @param receiver address of user that would receive the tokens
+    /// @return maxAssets max amount of assets that can be deposited
+    function maxDeposit(address receiver) external pure returns(uint256) {
+        if(receiver == address(0x0)){
+            return 0;
+        } else {
+            return 2**256-1;
+        }
+    }
+    /// @notice shows the max amount of shares that can be minted for or by a user
+    /// @param receiver address of user that would receive the shares
+    /// @return maxShares max amount of shares a user can receive
+    function maxMint(address receiver) external pure returns(uint256) {
+        if(receiver == address(0x0)){
+            return 0;
+        } else {
+            return 2**256-1;
+        }
     }
 
-    function convertToAssets(uint256 shares) external view returns(uint256 assets) {
-       assets = _convertToAssets(shares);
+    /// @notice max amount of tokens that could be withdrawn by a user
+    /// @param owner address for the owner of the shares being redeemed
+    /// @return maxAssets maximum number of assets owner is able to withdraw
+    function maxWithdraw(address owner) external pure returns(uint256) {
+        return _convertToAssets(_balanceOf[owner]);
     }
 
-    /// @notice User specifies amount of asset token to deposit in return for vault shares
+    /// @notice max amout of shares a user could redeem
+    /// @param owner address for the owner of the shares being redeemed
+    /// @return maxShares 
+    function maxRedeem(address owner) external pure returns(uint256) {
+        return _balanceOf[owner];
+    }
+
+    /// @notice used to simulate a deposit at the current block
+    /// @param assets amount of assets being deposited
+    /// @return shares amount of shares minted in exchange for assets
+    function previewDeposit(uint256 assets) external view returns(uint256) {
+        return _convertToShares(assets);
+    }
+
+    /// @notice used to simulate a deposit at the current block
+    /// @param shares desired amount of shares to mint
+    /// @return assets amount of asset token required for desired shares
+    function previewMint(uint256 shares) external view returns(uint256) {
+        return _convertToAssets(shares);
+    }
+
+    /// @notice used to simulate a withdrawal and the shares required
+    /// @param assets desired amount of asset token to receive
+    /// @return shares amount of shares required to redeem
+    function previewWithdraw(uint256 assets) external view returns(uint256) {
+        return _convertToShares(assets);
+    }
+
+    /**
+     * @dev Initiate a flash loan.
+     * @param receiver The receiver of the tokens in the loan, and the receiver of the callback.
+     * @param token The loan currency.
+     * @param amount The amount of tokens lent.
+     * @param data Arbitrary data structure, intended to contain user-defined parameters.
+     */
+    function flashLoan(
+        IERC3156FlashBorrower receiver,
+        address token,
+        uint256 amount,
+        bytes calldata data
+        ) external returns (bool) {
+        uint256 fee_ = _flashFee(token, amount);
+        iRings.safeTransfer(address(receiver), amount);
+        require(
+        receiver.onFlashLoan(msg.sender, token, amount, fee_, data) == keccak256("ERC3156FlashBorrower.onFlashLoan"),
+        "IERC3156: Callback failed");
+        iRings.safeTransferFrom(address(receiver), address(this), amount + fee_);
+        return true;
+    }
+
+    function init(uint256 assets, address receiver) external returns(uint256) {
+        _mint(receiver, assets);
+        iRings.safeTransferFrom(msg.sender, address(this), assets);
+        return assets;
+    }
+
+     /// @notice User specifies amount of asset token to deposit in return for vault shares
     /// @param assets Number of asset tokens to deposit
     /// @param receiver Address that vault tokens will be minted to
     /// @return shares Number of vault shares to return to the user
@@ -151,6 +219,51 @@ contract WRings is ERC20,
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
         return assets;
     }
-    
+
+    /// @notice The amount of shares to mint to a user for the asset token deposited under ideal conditions
+    /// @param assets Number of Rings tokens to deposit to the contract 
+    /// @return shares Number of vault shares minted to the user based on the exchange rate
+    function _convertToShares(uint256 assets) internal view returns(uint256 shares) {
+        uint256 _reserves = iRings.balanceOf(address(this));
+        shares = WMul.wmul(WDiv.wdiv(assets, _reserves), _totalSupply);
+    }
+
+    /// @notice Used to calculate the amount of an asset token to transfer to user for vault tokens burned under ideal conditions
+    /// @param shares Number of vault tokens to burn
+    /// @return assets Number of asset tokens to transfer to the user
+    function _convertToAssets(uint256 shares) internal view returns(uint256 assets) {
+       uint256 _reserves = iRings.balanceOf(address(this));
+       uint256 _portion = WDiv.wdiv(shares, _totalSupply);
+       assets = WMul.wmul(_portion, _reserves);
+    }
+
+    function _totalAssets() internal view returns(uint256) {
+        return iRings.balanceOf(address(this));
+    }
+
+    function _flashFee(address token, uint256 amount) internal view returns(uint256) {
+        require(token == address(iRings), "Token Not Supported");
+        return WMul.wmul(amount, fee);
+    }
+}
+
+interface IERC3156FlashBorrower {
+
+    /**
+     * @dev Receive a flash loan.
+     * @param initiator The initiator of the loan.
+     * @param token The loan currency.
+     * @param amount The amount of tokens lent.
+     * @param fee The additional amount of tokens to repay.
+     * @param data Arbitrary data structure, intended to contain user-defined parameters.
+     * @return The keccak256 hash of "ERC3156FlashBorrower.onFlashLoan"
+     */
+    function onFlashLoan(
+        address initiator,
+        address token,
+        uint256 amount,
+        uint256 fee,
+        bytes calldata data
+    ) external returns (bytes32);
 }
 

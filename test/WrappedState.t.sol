@@ -11,7 +11,7 @@ abstract contract WrappedState is ZeroState {
         for(uint i = 0; i < users.length; i++) {
             vm.startPrank(users[i]);
             rings.approve(address(wrings), 2**256-1);
-            wrings.deposit(1000000*10**18, users[i]);
+            wrings.deposit(1e26, users[i]);
             vm.stopPrank();
         }
 
