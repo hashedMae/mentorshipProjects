@@ -24,26 +24,20 @@ contract MechaSwap is ERC20{
     /// @dev reserve token Y
     IERC20 public immutable tokenY;
 
-    /// @notice emitted on pool initiation
-    /// @param user address of user that is intializing the pool
-    /// @param amountX amount of token X that is being contributed to the new pool
-    /// @param amountY amount of token Y that is being contributed to the new pool
-    /// @param amountZ amount of LP tokens that are being minted to the user
-    event Init(address indexed user, uint256 amountX, uint256 amountY, uint256 amountZ);
 
     /// @notice emitted when a user contributes liquidity to the pool
     /// @param user address of user that is providing liquidity to the pool
-    /// @param amountX amount of token X that is being provided as liquidity
-    /// @param amountY amount of token Y that is being provided as liquidity 
-    /// @param amountZ amount of LP tokens that are being minted to the user
-    event LiquidityProvided(address indexed user, uint256 amountX, uint256 amountY, uint256 amountZ);
+    /// @param xIn amount of token X that is being provided as liquidity
+    /// @param yIn amount of token Y that is being provided as liquidity 
+    /// @param zOut amount of LP tokens that are being minted to the user
+    event LiquidityProvided(address indexed user, uint256 xIn, uint256 yIn, uint256 zOut);
 
     /// @notice emitted when a user removes liquidity from the pool
     /// @param user address of user that is removing liquidity from the pool
-    /// @param amountX amount of token X that is being removed from liquidity
-    /// @param amountY amount of token Y that is being removed from liquidity
-    /// @param amountZ amount of LP tokens that are being burned from the user
-    event LiquidityRemoved(address indexed user, uint256 amountX, uint256 amountY, uint256 amountZ);
+    /// @param xOut amount of token X that is being removed from liquidity
+    /// @param yOut amount of token Y that is being removed from liquidity
+    /// @param zBurn amount of LP tokens that are being burned from the user
+    event LiquidityRemoved(address indexed user, uint256 xOut, uint256 yOut, uint256 zBurn);
 
     /// @notice emitted when a usere swaps tokens within the pool
     /// @param user address of user that is swapping tokens
@@ -59,47 +53,48 @@ contract MechaSwap is ERC20{
     }
 
     /// @notice used to intiate a liquidity pool, can only be done once
-    /// @param amountX the amount of token X that'll be added to the pool 
-    /// @param amountY the amount of token Y that'll be added to the pool
-    /// @return z the amount of LP tokens that'll be minted to the user
-    function init(uint256 amountX, uint256 amountY) external returns(uint256 z){
-        require(x_0 == 0 && y_0 == 0, "MechaSwap:Pool already initiated");
-        x_0 += amountX;
-        y_0 += amountY;
-        z = amountX * amountY;
-        tokenX.safeTransferFrom(msg.sender, address(this), amountX);
-        tokenY.safeTransferFrom(msg.sender, address(this), amountY);
-        _mint(msg.sender, z);
-        emit Init(msg.sender, amountX, amountY, z);
-    }
+    /// @param xIn the amount of token X that'll be added to the pool 
+    /// @param yIn the amount of token Y that'll be added to the pool
+    /// @return zOut the amount of LP tokens that'll be minted to the user
+    function init(uint256 xIn, uint256 yIn) external returns(uint256 zOut){
+        require(_totalSupply == 0, "MechaSwap:Pool already initiated");
+        require(xIn > 0 && yIn > 0, "MechaSwap: Can't provide 0 tokens");
+        x_0 += xIn;
+        y_0 += yIn;
+        zOut = xIn * yIn;
+        tokenX.safeTransferFrom(msg.sender, address(this), xIn);
+        tokenY.safeTransferFrom(msg.sender, address(this), yIn);
+        _mint(msg.sender, zOut);
+        emit LiquidityProvided(msg.sender, xIn, yIn, zOut);
+        }
 
     /// @notice used to add liquidity to an existing pool
-    /// @param amountX the amount of token X that'll be added to the pool
-    /// @return z the amount of LP tokens that'll be minted to the user
-    function addLiquidity(uint256 amountX) external returns(uint256 z){
-        require(x_0 > 0, "MechaSwap:Pool not intiated");
-        uint256 amountY = amountX * y_0 / x_0;
-        x_0 += amountX;
-        y_0 += amountY;
-        z = amountX / x_0;
-        tokenX.safeTransferFrom(msg.sender, address(this), amountX);
-        tokenY.safeTransferFrom(msg.sender, address(this), amountY);
-        _mint(msg.sender, z);
-        emit LiquidityProvided(msg.sender, amountX, amountY, z);
+    /// @param xIn the amount of token X that'll be added to the pool
+    /// @return zOut the amount of LP tokens that'll be minted to the user
+    function addLiquidity(uint256 xIn) external returns(uint256 zOut){
+        require(_totalSupply > 0, "MechaSwap:Pool not intiated");
+        uint256 yIn = WMul.wmul(xIn, WDiv.wdiv(y_0, x_0));
+        x_0 += xIn;
+        y_0 += yIn;
+        zOut = xIn / x_0;
+        tokenX.safeTransferFrom(msg.sender, address(this), xIn);
+        tokenY.safeTransferFrom(msg.sender, address(this), yIn);
+        _mint(msg.sender, zOut);
+        emit LiquidityProvided(msg.sender, xIn, yIn, zOut);
     }
 
     /// @notice used to remove tokens from the liquidity pool
-    /// @param amountZ the amount of LP tokens to burn
+    /// @param zBurn the amount of LP tokens to burn
     /// @return xOut the amount of token X returned to the user 
     /// @return yOut the amount of token Y returned to the user
-    function removeLiquidity(uint256 amountZ) external returns(uint256 xOut, uint256 yOut) {
-        uint256 zOwnership = amountZ / _totalSupply;
+    function removeLiquidity(uint256 zBurn) external returns(uint256 xOut, uint256 yOut) {
+        uint256 zOwnership = WDiv.wdiv(zBurn, _totalSupply);
         xOut = WMul.wmul(x_0, zOwnership);
         yOut = WMul.wmul(y_0, zOwnership);
-        _burn(msg.sender, amountZ);
+        _burn(msg.sender, zBurn);
         tokenX.safeTransfer(msg.sender, xOut);
         tokenY.safeTransfer(msg.sender, yOut);
-        emit LiquidityRemoved(msg.sender, xOut, yOut, amountZ);
+        emit LiquidityRemoved(msg.sender, xOut, yOut, zBurn);
     }
 
     /// @notice used to swap an amount of token X for token Y
@@ -132,8 +127,6 @@ contract MechaSwap is ERC20{
     /// @param bReserves rerserves for the token that is being bought from the pool
     /// @param bOut amount of token that is being bought from the pool
     function _price(uint256 aIn, uint256 aReserves, uint256 bReserves) internal view returns(uint256 bOut) {
-        require(x_0 > 0, "MechaSwap:Pool not intiated");
-        require(aIn > 0, "MechaSwap: Insufficient Tokens In");
         uint256 numerator = aIn * bReserves;
         uint256 denominator = aIn + aReserves;
         bOut = numerator / denominator;
