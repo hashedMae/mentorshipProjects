@@ -95,4 +95,16 @@ contract WrappedStateTest is WrappedState {
         vm.prank(sonic);
         wrings.redeem(shares, tails, eggman);
     }
+
+    function testFlashLoan(uint256 amount) public {
+        uint256 maxLoan = wrings.totalAssets();
+        amount = bound(amount, 1, maxLoan);
+        uint256 fee_ = wrings.flashFee(address(rings), amount);
+        uint256 rBal = rings.balanceOf(address(borrower));
+
+        vm.prank(bigTheCat);
+        borrower.flashBorrow(address(rings), amount);
+
+        assertEq(rings.balanceOf(address(borrower)), rBal - fee_);
+    }
 }

@@ -4,19 +4,25 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import "src/Rings.sol";
 import "src/WRings.sol";
-import "../lib/yield-utils-v2/contracts/math/WMul.sol";
-import "../lib/yield-utils-v2/contracts/math/WDiv.sol";
+import "yield-utils-v2/math/WMul.sol";
+import "yield-utils-v2/math/WDiv.sol";
+import "yield-utils-v2/token/IERC20.sol";
+import "src/Borrower.sol";
+import "src/interfaces/IERC3156FlashLender.sol";
 
 abstract contract ZeroState is Test {
     
     Rings public rings;
     WRings public wrings;
+    Borrower public borrower;
+
 
     address sonic = address(0x1);
     address tails = address(0x2);
     address knuckles = address(0x3);
     address eggman = address(0x4);
     address rouge = address(0x5);
+    address bigTheCat = address(0x6);
 
     address[] users = [sonic, tails, knuckles, eggman];
 
@@ -25,12 +31,14 @@ abstract contract ZeroState is Test {
     function setUp() public virtual {
         rings = new Rings();
         wrings = new WRings(rings);
+        borrower = new Borrower(IERC3156FlashLender(wrings));
 
         for(uint i = 0; i < users.length; i++) {
             rings.mint(users[i], 1e26);
         }
 
         rings.mint(rouge, 1e26);
+        rings.mint(address(borrower), 1e26);
 
         vm.startPrank(rouge);
         rings.approve(address(wrings), 2**256-1);

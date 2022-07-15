@@ -1,13 +1,6 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
-
-/// @title RMath
-/// @author hashedMae
-/// Math library for using wads with rads
-
 pragma solidity ^0.8.13;
 
-import "./Rings.sol";
 import "../lib/yield-utils-v2/contracts/token/ERC20.sol";
 import "../lib/yield-utils-v2/contracts/token/IERC20.sol";
 import "../lib/yield-utils-v2/contracts/math/WDiv.sol";
@@ -15,22 +8,36 @@ import "../lib/yield-utils-v2/contracts/math/WMul.sol";
 import "../lib/yield-utils-v2/contracts/access/Ownable.sol";
 import "../lib/yield-utils-v2/contracts/token/TransferHelper.sol";
 
+import "./interfaces/IERC3156FlashBorrower.sol";
+import "./interfaces/IERC3156FlashLender.sol";
+
 /// @title WRings
 /// @author hashedMae
 /// @notice A Yield Bearing Flash Loan Vault
 /// @dev Utilizes WMul and WDiv math libraries from Yield-Utils-V2. Will always round down to zero.
 
-contract WRings is ERC20, Ownable {
+contract WRings is ERC20, IERC3156FlashLender {
 
     using TransferHelper for IERC20;
     
     /// @notice Emitted whenever a user wraps tokens
-    event Deposit(address indexed caller, address indexed owner, uint256 assets, uint256 shares);
+    /// @param caller address of user that is submitting the transaction
+    /// @param receiver address of the user that'll receive the share tokens
+    /// @param assets amount of tokens to deposit
+    /// @param shares amount of shares that will be minted
+    event Deposit(address indexed caller, address indexed receiver, uint256 assets, uint256 shares);
+
     /// @notice Emitted whenever a user unwraps tokens
+    /// @param caller address of the user submitting the transaction
+    /// @param receiver address of the user that'll receive the withdrawn tokens
+    /// @param owner address of the user that owns the share tokens
+    /// @param assets amount of tokens that are being withdrawn
+    /// @param shares amount of shares that are being burned
     event Withdraw(address indexed caller, address indexed receiver, address indexed owner, uint256 assets, uint256 shares);
 
     IERC20 public immutable iRings;
-    uint256 public immutable fee = 1e16;
+    uint256 public constant fee = 1e16;
+    bytes32 public constant CALLBACK_SUCCESS = keccak256("ERC3156FlashBorrower.onFlashLoan");
    
 
     /// @param iRings_ ERC20 Interface for Rings token
@@ -65,7 +72,8 @@ contract WRings is ERC20, Ownable {
      * @return The amount of `token` to be charged for the loan, on top of the returned principal.
      */
     function flashFee(address token, uint256 amount) external view returns(uint256) {
-        return _flashFee(token, amount);
+        require(token == address(iRings), "WRings: Unsupported token");
+        return _flashFee(amount);
     }
     
     /// @notice the amount of shares the Vault would exchange for the amount of assets provided under ideal conditions
@@ -106,14 +114,14 @@ contract WRings is ERC20, Ownable {
     /// @notice max amount of tokens that could be withdrawn by a user
     /// @param owner address for the owner of the shares being redeemed
     /// @return maxAssets maximum number of assets owner is able to withdraw
-    function maxWithdraw(address owner) external pure returns(uint256) {
+    function maxWithdraw(address owner) external view returns(uint256) {
         return _convertToAssets(_balanceOf[owner]);
     }
 
     /// @notice max amout of shares a user could redeem
     /// @param owner address for the owner of the shares being redeemed
     /// @return maxShares 
-    function maxRedeem(address owner) external pure returns(uint256) {
+    function maxRedeem(address owner) external view returns(uint256) {
         return _balanceOf[owner];
     }
 
@@ -150,13 +158,26 @@ contract WRings is ERC20, Ownable {
         address token,
         uint256 amount,
         bytes calldata data
-        ) external returns (bool) {
-        uint256 fee_ = _flashFee(token, amount);
-        iRings.safeTransfer(address(receiver), amount);
+        ) external override returns (bool) {
+        require(token == address(iRings), "WRings: Unsupported token");
+        uint256 fee_ = _flashFee(amount);
         require(
-        receiver.onFlashLoan(msg.sender, token, amount, fee_, data) == keccak256("ERC3156FlashBorrower.onFlashLoan"),
-        "IERC3156: Callback failed");
-        iRings.safeTransferFrom(address(receiver), address(this), amount + fee_);
+            iRings.transfer(address(receiver), amount),
+            "WRings: Transfer failed"
+        );
+        require(
+            receiver.onFlashLoan(msg.sender, token, amount, fee_, data) == CALLBACK_SUCCESS,
+            "IERC3156: Callback failed"
+        );
+        uint256 _allowance = iRings.allowance(address(receiver), address(this));
+        require(
+            _allowance >= (amount + fee_),
+            "WRings: Repay not approved"
+        );
+        require(
+            iRings.transferFrom(address(receiver), address(this), amount + fee_),
+            "WRings: Repay failed"
+        );
         return true;
     }
 
@@ -241,29 +262,7 @@ contract WRings is ERC20, Ownable {
         return iRings.balanceOf(address(this));
     }
 
-    function _flashFee(address token, uint256 amount) internal view returns(uint256) {
-        require(token == address(iRings), "Token Not Supported");
+    function _flashFee(uint256 amount) internal view returns(uint256) {
         return WMul.wmul(amount, fee);
     }
 }
-
-interface IERC3156FlashBorrower {
-
-    /**
-     * @dev Receive a flash loan.
-     * @param initiator The initiator of the loan.
-     * @param token The loan currency.
-     * @param amount The amount of tokens lent.
-     * @param fee The additional amount of tokens to repay.
-     * @param data Arbitrary data structure, intended to contain user-defined parameters.
-     * @return The keccak256 hash of "ERC3156FlashBorrower.onFlashLoan"
-     */
-    function onFlashLoan(
-        address initiator,
-        address token,
-        uint256 amount,
-        uint256 fee,
-        bytes calldata data
-    ) external returns (bytes32);
-}
-
