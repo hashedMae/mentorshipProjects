@@ -6,8 +6,8 @@ import "./ZeroState.t.sol";
 contract ZeroStateTest is ZeroState {
 
     function testPoolInit(uint256 x, uint256 y) public {
-        x = bound(x, 1e18, 1e24);
-        y = bound(y, 1e9, 1e21);
+        x = bound(x, 1, 1e24);
+        y = bound(y, 1, 1e21);
         
         uint256 xBal = iDAI.balanceOf(char);
         uint256 yBal = iWETH.balanceOf(char);
@@ -24,45 +24,33 @@ contract ZeroStateTest is ZeroState {
     }
 
     function testInitEmit(uint256 x, uint256 y) public {
-        x = bound(x, 1e18, 1e24);
-        y = bound(y, 1e9, 1e21);
+        x = bound(x, 1, 1e24);
+        y = bound(y, 1, 1e21);
 
         vm.startPrank(char);
         iDAI.approve(address(swap), 2**256-1);
         iWETH.approve(address(swap), 2**256-1);
         vm.expectEmit(true, false, false, true);
-        emit Init(char, x, y, x*y);
+        emit LiquidityProvided(char, x, y, x*y);
         swap.init(x, y);
         vm.stopPrank();
     }
 
+    function testCannotInit0() public {
+        vm.expectRevert("MechaSwap: Can't provide 0 tokens");
+        vm.prank(char);
+        swap.init(0,1);
+
+    }
+
     function testCannotLPBeforeInit(uint256 x) public {
-        x = bound(x, 1e18, 1e24);
+        x = bound(x, 1, 1e24);
 
         vm.startPrank(amuro);
         iDAI.approve(address(swap), 2**256-1);
         iWETH.approve(address(swap), 2**256-1);
         vm.expectRevert("MechaSwap:Pool not intiated");
         swap.addLiquidity(x);
-        vm.stopPrank();
-    }
-
-    function testCannotSwapXBeforeInit(uint256 x) public {
-        x = bound(x, 1e18, 1e24);
-
-        vm.startPrank(gharma);
-        iDAI.approve(address(swap), 2**256-1);
-        vm.expectRevert("MechaSwap:Pool not intiated");
-        swap.swapXForY(x);
-        vm.stopPrank();
-    }
-
-    function testCannotSwapYBeforeInit(uint256 y) public {
-        y = bound(y, 1e9, 1e21);
-        vm.startPrank(gharma);
-        iWETH.approve(address(swap), 2**256-1);
-        vm.expectRevert("MechaSwap:Pool not intiated");
-        swap.swapYForX(y);
         vm.stopPrank();
     }
 }

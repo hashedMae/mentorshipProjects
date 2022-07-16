@@ -36,8 +36,8 @@ contract MechaSwap is ERC20{
     /// @param user address of user that is removing liquidity from the pool
     /// @param xOut amount of token X that is being removed from liquidity
     /// @param yOut amount of token Y that is being removed from liquidity
-    /// @param zBurn amount of LP tokens that are being burned from the user
-    event LiquidityRemoved(address indexed user, uint256 xOut, uint256 yOut, uint256 zBurn);
+    /// @param zIn amount of LP tokens that are being burned from the user
+    event LiquidityRemoved(address indexed user, uint256 xOut, uint256 yOut, uint256 zIn);
 
     /// @notice emitted when a usere swaps tokens within the pool
     /// @param user address of user that is swapping tokens
@@ -73,10 +73,16 @@ contract MechaSwap is ERC20{
     /// @return zOut the amount of LP tokens that'll be minted to the user
     function addLiquidity(uint256 xIn) external returns(uint256 zOut){
         require(_totalSupply > 0, "MechaSwap:Pool not intiated");
-        uint256 yIn = WMul.wmul(xIn, WDiv.wdiv(y_0, x_0));
+        uint256 _x_0 = x_0;
+        uint256 _y_0 = y_0;
+        if(_x_0 > _y_0){
+            uint256 xMin = _x_0 / _y_0;
+            require(xIn >= xMin, "MechaSwap:xIn doesn't meet minimum");
+        }
+        uint256 yIn = _y_0 * xIn / _x_0;
+        zOut = xIn * _totalSupply / _x_0;
         x_0 += xIn;
         y_0 += yIn;
-        zOut = xIn / x_0;
         tokenX.safeTransferFrom(msg.sender, address(this), xIn);
         tokenY.safeTransferFrom(msg.sender, address(this), yIn);
         _mint(msg.sender, zOut);
@@ -84,17 +90,17 @@ contract MechaSwap is ERC20{
     }
 
     /// @notice used to remove tokens from the liquidity pool
-    /// @param zBurn the amount of LP tokens to burn
+    /// @param zIn the amount of LP tokens to burn
     /// @return xOut the amount of token X returned to the user 
     /// @return yOut the amount of token Y returned to the user
-    function removeLiquidity(uint256 zBurn) external returns(uint256 xOut, uint256 yOut) {
-        uint256 zOwnership = WDiv.wdiv(zBurn, _totalSupply);
+    function removeLiquidity(uint256 zIn) external returns(uint256 xOut, uint256 yOut) {
+        uint256 zOwnership = WDiv.wdiv(zIn, _totalSupply);
         xOut = WMul.wmul(x_0, zOwnership);
         yOut = WMul.wmul(y_0, zOwnership);
-        _burn(msg.sender, zBurn);
+        _burn(msg.sender, zIn);
         tokenX.safeTransfer(msg.sender, xOut);
         tokenY.safeTransfer(msg.sender, yOut);
-        emit LiquidityRemoved(msg.sender, xOut, yOut, zBurn);
+        emit LiquidityRemoved(msg.sender, xOut, yOut, zIn);
     }
 
     /// @notice used to swap an amount of token X for token Y

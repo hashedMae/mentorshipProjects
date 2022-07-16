@@ -6,11 +6,13 @@ import "./InitState.t.sol";
 contract InitStateTest is InitState {
 
     function testMint(uint256 x) public {
-        x = bound(x, 1, 1e27);
+        uint256 xMin = swap.x_0() / swap.y_0();
+        x = bound(x, xMin, 1e26);
         uint256 y = x * swap.y_0() / swap.x_0();
         uint256 xBal = iDAI.balanceOf(amuro);
         uint256 yBal = iWETH.balanceOf(amuro);
-        uint256 z = x / swap.x_0();
+        uint256 zBal = swap.balanceOf(amuro);
+        uint256 z = x * swap.totalSupply() / swap.x_0();
 
         vm.startPrank(amuro);
         iDAI.approve(address(swap), 2**256-1);
@@ -19,13 +21,14 @@ contract InitStateTest is InitState {
         vm.stopPrank();
         assertEq(iDAI.balanceOf(amuro), xBal - x);
         assertEq(iWETH.balanceOf(amuro), yBal - y);
-        assertEq(swap.balanceOf(amuro), z);
+        assertEq(swap.balanceOf(amuro), zBal + z);
     }
 
     function testMintEmit(uint256 x) public {
-        x = bound(x, 1, 1e27);
+        uint256 xMin = swap.x_0() / swap.y_0();
+        x = bound(x, xMin, 1e26);
         uint256 y = x * swap.y_0() / swap.x_0();
-        uint256 z = x / swap.x_0();
+        uint256 z = x * swap.totalSupply() / swap.x_0();
 
         vm.startPrank(gharma);
         iDAI.approve(address(swap), 2**256-1);
@@ -43,11 +46,11 @@ contract InitStateTest is InitState {
 
         z = bound(z, 1, zBal);
 
-        uint256 z_0 = swap.totalSupply();
+        uint256 zPer = WDiv.wdiv(z, swap.totalSupply());
         uint256 x_0 = swap.x_0();
         uint256 y_0 = swap.y_0();
-        uint256 x = z / z_0 * x_0;
-        uint256 y = z / z_0 * y_0;
+        uint256 x = WMul.wmul(x_0, zPer);
+        uint256 y = WMul.wmul(y_0, zPer);
 
         vm.prank(char);
         swap.removeLiquidity(z);
@@ -61,12 +64,11 @@ contract InitStateTest is InitState {
         uint256 zBal = swap.balanceOf(char);
         z = bound(z, 1, zBal);
 
-        uint256 z_0 = swap.totalSupply();
+        uint256 zPer = WDiv.wdiv(z, swap.totalSupply());
         uint256 x_0 = swap.x_0();
         uint256 y_0 = swap.y_0();
-
-        uint256 x = z / z_0 * x_0;
-        uint256 y = z / z_0 * y_0;
+        uint256 x = WMul.wmul(x_0, zPer);
+        uint256 y = WMul.wmul(y_0, zPer);
 
         vm.expectEmit(true, false, false, true);
         emit LiquidityRemoved(char, x, y, z);
@@ -150,16 +152,24 @@ contract InitStateTest is InitState {
         vm.stopPrank();
     }
 
-    function testCannotSwapX0() public {
+    function testSwapX0() public {
+        console.log("DAI BALANCE: ", iDAI.balanceOf(amuro));
+        console.log("WETH BALANCE: ", iWETH.balanceOf(amuro));
+        uint256 xBal = iDAI.balanceOf(amuro);
+        uint256 yBal = iWETH.balanceOf(amuro);
         vm.startPrank(amuro);
-        vm.expectRevert("MechaSwap: Insufficient Tokens In");
         swap.swapXForY(0);
         vm.stopPrank();
+        assertEq(iDAI.balanceOf(amuro), xBal);
+        assertEq(iWETH.balanceOf(amuro), yBal);
     }
 
-    function testCannotSwapY0() public {
-        vm.expectRevert("MechaSwap: Insufficient Tokens In");
+    function testSwapY0() public {
+        uint256 xBal = iDAI.balanceOf(amuro);
+        uint256 yBal = iWETH.balanceOf(amuro);
         vm.prank(gharma);
         swap.swapYForX(0);
+        assertEq(iDAI.balanceOf(amuro), xBal);
+        assertEq(iWETH.balanceOf(amuro), yBal);
     }
 }
