@@ -46,15 +46,12 @@ abstract contract ZeroState is Test {
         vm.stopPrank();
     }
 
-    function _convertToShares(uint256 _assets) internal view returns(uint256 shares) {
-        uint256 _reserves = rings.balanceOf(address(wrings));
-        shares = WMul.wmul(WDiv.wdiv(_assets, _reserves), wrings.totalSupply());
+    function _convertToShares(uint256 assets) internal view returns(uint256 shares) {
+        return assets * wrings.totalSupply() / wrings.totalAssets();
     }
 
-    function _convertToAssets(uint256 _shares) internal view returns(uint256 assets) {
-       uint256 _reserves = rings.balanceOf(address(wrings));
-       uint256 _portion = WDiv.wdiv(_shares, wrings.totalSupply());
-       assets = WMul.wmul(_portion, _reserves);
+    function _convertToAssets(uint256 shares) internal view returns(uint256 assets) {
+       return shares * wrings.totalAssets() / wrings.totalSupply();
     }
 
     

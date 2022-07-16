@@ -245,17 +245,14 @@ contract WRings is ERC20, IERC3156FlashLender {
     /// @param assets Number of Rings tokens to deposit to the contract 
     /// @return shares Number of vault shares minted to the user based on the exchange rate
     function _convertToShares(uint256 assets) internal view returns(uint256 shares) {
-        uint256 _reserves = iRings.balanceOf(address(this));
-        shares = WMul.wmul(WDiv.wdiv(assets, _reserves), _totalSupply);
+        return assets * _totalSupply / _totalAssets();
     }
 
     /// @notice Used to calculate the amount of an asset token to transfer to user for vault tokens burned under ideal conditions
     /// @param shares Number of vault tokens to burn
     /// @return assets Number of asset tokens to transfer to the user
     function _convertToAssets(uint256 shares) internal view returns(uint256 assets) {
-       uint256 _reserves = iRings.balanceOf(address(this));
-       uint256 _portion = WDiv.wdiv(shares, _totalSupply);
-       assets = WMul.wmul(_portion, _reserves);
+       return shares * _totalAssets() / _totalSupply;
     }
 
     function _totalAssets() internal view returns(uint256) {
