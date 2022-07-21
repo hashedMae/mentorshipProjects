@@ -40,20 +40,15 @@ contract WRings is ERC20, IERC3156FlashLender {
     /// @param shares amount of shares that are being burned
     event Withdraw(address indexed caller, address indexed receiver, address indexed owner, uint256 assets, uint256 shares);
 
-    IERC20 public immutable iRings;
+    IERC20 public immutable asset;
     uint256 public constant fee = 1e16;
     uint256 public constant maxSupply = 2**128-1;
     bytes32 public constant CALLBACK_SUCCESS = keccak256("ERC3156FlashBorrower.onFlashLoan");
    
 
-    /// @param iRings_ ERC20 Interface for Rings token
-    constructor(IERC20 iRings_) ERC20("WRings", "WRNG", 18) {
-        iRings = iRings_;
-    }
-
-    /// @return assetTokenAddress Contract address of token utilized by the vault
-    function asset() external view returns(address){
-        return address(iRings);
+    /// @param asset_ ERC20 Interface for Rings token
+    constructor(IERC20 asset_) ERC20("WRings", "WRNG", 18) {
+        asset = asset_;
     }
 
     /// @return totalManagedAssets Balance of the asset token within the vault
@@ -67,7 +62,7 @@ contract WRings is ERC20, IERC3156FlashLender {
      * @return The amount of `token` that can be borrowed.
      */
     function maxFlashLoan(address token) external view returns(uint256) {
-        require(token == address(iRings), "Token not available");
+        require(token == address(asset), "Token not available");
         return _totalAssets();
     }
 
@@ -78,7 +73,7 @@ contract WRings is ERC20, IERC3156FlashLender {
      * @return The amount of `token` to be charged for the loan, on top of the returned principal.
      */
     function flashFee(address token, uint256 amount) external view returns(uint256) {
-        require(token == address(iRings), "WRings: Unsupported token");
+        require(token == address(asset), "WRings: Unsupported token");
         return _flashFee(amount);
     }
     
@@ -159,10 +154,10 @@ contract WRings is ERC20, IERC3156FlashLender {
         uint256 amount,
         bytes calldata data
         ) external override returns (bool) {
-        require(token == address(iRings), "WRings: Unsupported token");
+        require(token == address(asset), "WRings: Unsupported token");
         uint256 fee_ = _flashFee(amount);
         require(
-            iRings.transfer(address(receiver), amount),
+            asset.transfer(address(receiver), amount),
             "WRings: Transfer failed"
         );
         require(
@@ -172,7 +167,7 @@ contract WRings is ERC20, IERC3156FlashLender {
         
         
         require(
-            iRings.transferFrom(address(receiver), address(this), amount + fee_),
+            asset.transferFrom(address(receiver), address(this), amount + fee_),
             "WRings: Repay failed"
         );
         return true;
@@ -180,7 +175,7 @@ contract WRings is ERC20, IERC3156FlashLender {
 
     function init(uint128 assets, address receiver) external returns(uint256) {
         _mint(receiver, assets);
-        iRings.safeTransferFrom(msg.sender, address(this), assets);
+        asset.safeTransferFrom(msg.sender, address(this), assets);
         return assets;
     }
 
@@ -192,7 +187,7 @@ contract WRings is ERC20, IERC3156FlashLender {
         shares = _convertToShares(assets);
         require(_totalSupply + shares <= maxSupply, "WRings:request would exceed max shares");
         _mint(receiver, shares);
-        iRings.safeTransferFrom(msg.sender, address(this), assets);
+        asset.safeTransferFrom(msg.sender, address(this), assets);
         emit Deposit(msg.sender, receiver, assets, shares);
     }
 
@@ -204,7 +199,7 @@ contract WRings is ERC20, IERC3156FlashLender {
         require(_totalSupply + shares <= maxSupply, "WRings:request would exceed max shares");
         assets = _convertToAssets(shares);
         _mint(receiver, shares);
-        iRings.safeTransferFrom(msg.sender, address(this), assets);
+        asset.safeTransferFrom(msg.sender, address(this), assets);
         emit Deposit(msg.sender, receiver, assets, shares);
     }
 
@@ -218,7 +213,7 @@ contract WRings is ERC20, IERC3156FlashLender {
         shares = _convertToShares(assets);
         require(_balanceOf[owner] >= shares, "Insufficient shares");
         _burn(owner, shares);
-        iRings.safeTransfer(receiver, assets);
+        asset.safeTransfer(receiver, assets);
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
         return shares;
     }
@@ -233,7 +228,7 @@ contract WRings is ERC20, IERC3156FlashLender {
         require(_balanceOf[owner] >= shares, "Insufficient shares");
         assets = _convertToAssets(shares);
         _burn(owner, shares);
-        iRings.safeTransfer(receiver, assets);
+        asset.safeTransfer(receiver, assets);
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
     }
 
@@ -241,7 +236,7 @@ contract WRings is ERC20, IERC3156FlashLender {
     /// @param assets Number of Rings tokens to deposit to the contract 
     /// @return shares Number of vault shares minted to the user based on the exchange rate
     function _convertToShares(uint128 assets) internal view returns(uint256 shares) {
-        uint256 _reserves = iRings.balanceOf(address(this));
+        uint256 _reserves = asset.balanceOf(address(this));
         uint256 _assets = uint256(assets);
         shares = _assets * _totalSupply / _reserves;    }
 
@@ -249,12 +244,12 @@ contract WRings is ERC20, IERC3156FlashLender {
     /// @param shares Number of vault tokens to burn
     /// @return assets Number of asset tokens to transfer to the user
     function _convertToAssets(uint128 shares) internal view returns(uint256 assets) {
-       uint256 _reserves = iRings.balanceOf(address(this));
+       uint256 _reserves = asset.balanceOf(address(this));
        uint256 _shares = uint256(shares);
        assets = _shares * _reserves / _totalSupply;    }
 
     function _totalAssets() internal view returns(uint256) {
-        return iRings.balanceOf(address(this));
+        return asset.balanceOf(address(this));
     }
 
     function _flashFee(uint256 amount) internal view returns(uint256) {
