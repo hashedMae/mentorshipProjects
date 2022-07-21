@@ -5,7 +5,6 @@ import "./ZeroState.t.sol";
 
 contract ZeroStateTest is ZeroState {
 
-
     
 
     function testDeposit(uint256 amount) public {
@@ -72,7 +71,11 @@ contract ZeroStateTest is ZeroState {
         vault.repayUSDC(amount);
     }
 
-    
+    function testCannotLiquidateUnlessOwner() public {
+        vm.expectRevert("Ownable: caller is not the owner");
+        vm.prank(rooster);
+        vault.liquidate(maverick);
+    }
 
     
 
