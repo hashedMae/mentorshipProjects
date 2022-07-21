@@ -2,39 +2,42 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "src/MechaSwap.sol";
-import "yield-utils-v2/token/IERC20.sol";
 
-contract ZeroState is Test {
-
-    MechaSwap public swap;
-
-    address DAI = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
     address WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
     IERC20 iWETH = IERC20(WETH);
     IERC20 iDAI = IERC20(DAI);
 
-    address char = address(0x1);
-    address amuro = address(0x2);
-    address gharma = address(0x3);
+     
+    IERC20 iUSDC = IERC20(USDC);
 
-    address[] users = [char, amuro, gharma];
+    address iceman = address(0x1);
+    address maverick = address(0x2);
+    address phoenix = address(0x3);
+    address rooster = address(0x4);
 
-    event Init(address indexed user, uint256 amountX, uint256 amountY, uint256 amountZ);
-    event LiquidityProvided(address indexed user, uint256 amountX, uint256 amountY, uint256 amountZ);
-    event LiquidityRemoved(address indexed user, uint256 amountX, uint256 amountY, uint256 amountZ);
-    event Swap(address indexed user, uint256 xIn, uint256 yIn, uint256 xOut, uint256 yOut);
-    
+    address[] fakes = [maverick, phoenix, rooster];
+
+    event Deposit(address indexed user, uint256 amount);
+    event Borrow(address indexed user, uint256 amount);
+    event Repay(address indexed user, uint256 repaid, uint256 remaining);
+    event Withdraw(address indexed user, uint256 amount);
+
     function setUp() public virtual {
+        deal(WETH, maverick, 10000 ether);
+        deal(WETH, phoenix, 10000 ether);
+        deal(WETH, rooster, 10000 ether);
 
-        for(uint i = 0; i < users.length; ++i) {
-            deal(DAI, users[i], 1e30);
-            deal(WETH, users[i], 1e24);
-            
-        }
+        
+        deal(DAI, iceman, 1e30);
+        deal(USDC, iceman, 1e18);
+        
+        vm.startPrank(iceman);
+        vault = new CollateralizedVault(DAI, WETH, USDC, AggregatorV3Interface(0x773616E4d11A78F511299002da57A0a94577F1f4), AggregatorV3Interface(0x986b5E1e1755e3C2440e960477f25201B0a8bbD4));
+        /**iDAI.approve(address(vault), 2**256-1);
+        iUSDC.approve(address(vault), 2**256-1);
+        vault.stableDeposit(1000000e18, 1000000e6);*/
+        vm.stopPrank();
 
-        vm.prank(char);
-        swap = new MechaSwap(iDAI, iWETH);
     }
 }
