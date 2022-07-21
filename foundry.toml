@@ -3,8 +3,10 @@ src = 'src'
 out = 'out'
 libs = ['lib']
 remappings = [
-    'ds-test/=lib/ds-test/src/',
+    'ds-test/=lib/forge-std/lib/ds-test/src/',
     'forge-std/=lib/forge-std/src/',
+    'yield-utils/=lib/yield-utils-v2/',
+    'chainlink/=lib/chainlink/',
 ]
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config
