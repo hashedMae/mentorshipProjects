@@ -100,21 +100,14 @@ contract WRings is ERC20, IERC3156FlashLender {
     /// @param receiver address of user that would receive the tokens
     /// @return maxAssets max amount of assets that can be deposited
     function maxDeposit(address receiver) external view returns(uint256 maxAssets) {
-        if(receiver == address(0x0)){
-            return 0;
-        } else {
-            maxAssets = _convertToAssets(uint128(maxSupply) - uint128(_totalSupply));
-        }
+        maxAssets = _convertToAssets(uint128(maxSupply) - uint128(_totalSupply));
     }
+    
     /// @notice shows the max amount of shares that can be minted for or by a user
     /// @param receiver address of user that would receive the shares
     /// @return maxShares max amount of shares a user can receive
     function maxMint(address receiver) external view returns(uint256 maxShares) {
-        if(receiver == address(0x0)){
-            return 0;
-        } else {
-            maxShares = maxSupply - _totalSupply;
-        }
+        maxShares = maxSupply - _totalSupply;
     }
 
     /// @notice max amount of tokens that could be withdrawn by a user
@@ -122,12 +115,7 @@ contract WRings is ERC20, IERC3156FlashLender {
     /// @return maxAssets maximum number of assets owner is able to withdraw
     function maxWithdraw(address owner) external view returns(uint256 maxAssets) {
         uint256 _bal = _balanceOf[owner];
-        if(_bal <= 2**128-1){
-            _convertToAssets(uint128(_bal));
-        } else {
-            _convertToAssets(2**128-1);
-        }
-        
+        maxAssets = _convertToAssets(uint128(_bal));
     }
 
     /// @notice max amout of shares a user could redeem
@@ -181,11 +169,8 @@ contract WRings is ERC20, IERC3156FlashLender {
             receiver.onFlashLoan(msg.sender, token, amount, fee_, data) == CALLBACK_SUCCESS,
             "IERC3156: Callback failed"
         );
-        uint256 _allowance = iRings.allowance(address(receiver), address(this));
-        require(
-            _allowance >= (amount + fee_),
-            "WRings: Repay not approved"
-        );
+        
+        
         require(
             iRings.transferFrom(address(receiver), address(this), amount + fee_),
             "WRings: Repay failed"
