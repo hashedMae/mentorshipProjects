@@ -75,10 +75,6 @@ contract MechaSwap is ERC20{
         require(_totalSupply > 0, "MechaSwap:Pool not intiated");
         uint256 _x_0 = x_0;
         uint256 _y_0 = y_0;
-        if(_x_0 > _y_0){
-            uint256 xMin = _x_0 / _y_0;
-            require(xIn >= xMin, "MechaSwap:xIn doesn't meet minimum");
-        }
         uint256 yIn = _y_0 * xIn / _x_0;
         zOut = xIn * _totalSupply / _x_0;
         x_0 += xIn;

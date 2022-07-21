@@ -15,25 +15,15 @@ contract ZeroStateTest is ZeroState {
         vm.startPrank(char);
         iDAI.approve(address(swap), 2**256-1);
         iWETH.approve(address(swap), 2**256-1);
-        swap.init(x, y);
+        vm.expectEmit(true, false, false, true);
+        emit LiquidityProvided(char, x, y, x*y);
+        uint256 zVal = swap.init(x, y);
         vm.stopPrank();
         uint256 z = swap.balanceOf(char);
         assertEq(iDAI.balanceOf(char), xBal - x);
         assertEq(iWETH.balanceOf(char), yBal - y);
         assertEq(z, x*y);
-    }
-
-    function testInitEmit(uint256 x, uint256 y) public {
-        x = bound(x, 1, 1e24);
-        y = bound(y, 1, 1e21);
-
-        vm.startPrank(char);
-        iDAI.approve(address(swap), 2**256-1);
-        iWETH.approve(address(swap), 2**256-1);
-        vm.expectEmit(true, false, false, true);
-        emit LiquidityProvided(char, x, y, x*y);
-        swap.init(x, y);
-        vm.stopPrank();
+        assertEq(zVal, x*y);
     }
 
     function testCannotInit0() public {
