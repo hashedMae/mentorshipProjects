@@ -9,8 +9,13 @@ import "yield-utils-v2/math/WDiv.sol";
 import "yield-utils-v2/token/IERC20.sol";
 import "src/Borrower.sol";
 import "src/interfaces/IERC3156FlashLender.sol";
+import "yield-utils-v2/cast/CastU256U128.sol";
+
 
 abstract contract ZeroState is Test {
+
+    using CastU256U128 for uint256;
+
     
     Rings public rings;
     WRings public wrings;
@@ -47,11 +52,11 @@ abstract contract ZeroState is Test {
     }
 
     function _convertToShares(uint256 assets) internal view returns(uint256 shares) {
-        return assets * wrings.totalSupply() / wrings.totalAssets();
+        shares = assets * wrings.totalSupply() / wrings.totalAssets();
     }
 
     function _convertToAssets(uint256 shares) internal view returns(uint256 assets) {
-       return shares * wrings.totalAssets() / wrings.totalSupply();
+       assets = shares * wrings.totalAssets() / wrings.totalSupply();
     }
 
     
