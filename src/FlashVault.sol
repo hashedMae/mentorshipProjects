@@ -141,6 +141,13 @@ contract FlashVault is ERC20, IERC3156FlashLender {
         shares = _convertToShares(assets);
     }
 
+    /// @notice used to simulate a withdrawal and the assets received for an amount of shares
+    /// @param shares amount of pool shares being redeemed
+    /// @return assets amount of assets received for redeemed shares
+    function previewRedeem(uint128 shares) external view returns(uint256 assets) {
+        assets = _convertToAssets(shares);
+    }
+
     /**
      * @dev Initiate a flash loan.
      * @param receiver The receiver of the tokens in the loan, and the receiver of the callback.

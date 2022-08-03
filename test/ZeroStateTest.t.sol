@@ -16,8 +16,8 @@ contract ZeroStateTest is ZeroState {
         
 
         uint256 wBal = iWETH.balanceOf(jyn);
-        ///vm.expectEmit(true, true, false, false);
-        ///emit Liquidation(jyn, orson, a, p);
+        vm.expectEmit(true, true, false, false);
+        emit Liquidation(jyn, orson, a, p);
         vm.prank(jyn);
         liquid.liquidate(orson);
         assertGt(iWETH.balanceOf(jyn), wBal);

@@ -32,7 +32,8 @@ contract EasyLiquidator is IERC3156FlashBorrower {
         uint256 debtDAI,
         uint256 profitWETH);
 
-    constructor(IERC3156FlashLender lDAI_, 
+    constructor(
+        IERC3156FlashLender lDAI_, 
         ISimpleSwap sDAI_,
         ICollateralizedVault vault_,
         IERC20 WETH_,
@@ -58,11 +59,9 @@ contract EasyLiquidator is IERC3156FlashBorrower {
         bytes memory data = abi.encode(Action.NORMAL, user, rDAI);
         DAI.approve(address(lDAI), aDAI + rDAI);
         lDAI.flashLoan(this, address(DAI), dDAI, data);
-        WETH.safeTransfer(msg.sender, WETH.balanceOf(address(this)) - balWETH);
-
-        
-
-        
+        uint256 pWETH = WETH.balanceOf(address(this)) - balWETH;
+        WETH.safeTransfer(msg.sender, pWETH);
+        emit Liquidation(msg.sender, user, dDAI, pWETH);
     }
         
     
@@ -71,7 +70,6 @@ contract EasyLiquidator is IERC3156FlashBorrower {
     function onFlashLoan(
         address initiator,
         address token,
-
         uint256 amount,
         uint256 fee,
         bytes calldata data

@@ -71,42 +71,41 @@ contract ZeroState is Test {
         deal(USDC, orson, 2000000e6);
 
         
-    vm.startPrank(ks);
-    vault = new CollateralizedVault(DAI, WETH, USDC, AggregatorV3Interface(0x773616E4d11A78F511299002da57A0a94577F1f4), AggregatorV3Interface(0x986b5E1e1755e3C2440e960477f25201B0a8bbD4));
-    sDAI = new SimpleSwap(iDAI, iWETH);
-    sUSDC = new SimpleSwap(iUSDC, iWETH);
-    lDAI = new FlashVault(iDAI);
-    lUSDC = new FlashVault(iUSDC);
+        vm.startPrank(ks);
+        vault = new CollateralizedVault(DAI, WETH, USDC, AggregatorV3Interface(0x773616E4d11A78F511299002da57A0a94577F1f4), AggregatorV3Interface(0x986b5E1e1755e3C2440e960477f25201B0a8bbD4));
+        sDAI = new SimpleSwap(iDAI, iWETH);
+        sUSDC = new SimpleSwap(iUSDC, iWETH);
+        lDAI = new FlashVault(iDAI);
+        lUSDC = new FlashVault(iUSDC);
 
-    liquid = new EasyLiquidator(IERC3156FlashLender(address(lDAI)), ISimpleSwap(address(sDAI)), ICollateralizedVault(address(vault)), iWETH, iDAI);
-    iDAI.transfer(address(vault), 2e24);
-    iUSDC.transfer(address(vault), 2e12);
-    vm.stopPrank();
+        liquid = new EasyLiquidator(IERC3156FlashLender(address(lDAI)), ISimpleSwap(address(sDAI)), ICollateralizedVault(address(vault)), iWETH, iDAI);
+        iDAI.transfer(address(vault), 2e24);
+        iUSDC.transfer(address(vault), 2e12);
+        vm.stopPrank();
 
-    vm.startPrank(cass);
-    iDAI.approve(address(lDAI), UINT256_MAX);
-    iUSDC.approve(address(lUSDC), UINT256_MAX);
-    lDAI.init(2e24, cass);
-    lUSDC.init(2e12, cass);
-    vm.stopPrank();
+        vm.startPrank(cass);
+        iDAI.approve(address(lDAI), UINT256_MAX);
+        iUSDC.approve(address(lUSDC), UINT256_MAX);
+        lDAI.init(2e24, cass);
+        lUSDC.init(2e12, cass);
+        vm.stopPrank();
 
-    uint256 xIn = 164489e19;
-    vm.startPrank(ks);
-    iDAI.approve(address(sDAI), UINT256_MAX);
-    iWETH.approve(address(sDAI), UINT256_MAX);
-    sDAI.init(164489e19, 1e21);
-    vm.stopPrank();
+        uint256 xIn = 164489e19;
+        vm.startPrank(ks);
+        iDAI.approve(address(sDAI), UINT256_MAX);
+        iWETH.approve(address(sDAI), UINT256_MAX);
+        sDAI.init(164489e19, 1e21);
+        vm.stopPrank();
 
-    vm.startPrank(baze);
-    iUSDC.approve(address(sUSDC), UINT256_MAX);
-    iWETH.approve(address(sUSDC), UINT256_MAX);
-    sUSDC.init(164489e7, 1e21);
-    vm.stopPrank();
+        vm.startPrank(baze);
+        iUSDC.approve(address(sUSDC), UINT256_MAX);
+        iWETH.approve(address(sUSDC), UINT256_MAX);
+        sUSDC.init(164489e7, 1e21);
+        vm.stopPrank();
 
-    vm.startPrank(orson);
-    iWETH.approve(address(vault), UINT256_MAX);
-    vault.deposit(5e19);
-    vm.stopPrank();
-
+        vm.startPrank(orson);
+        iWETH.approve(address(vault), UINT256_MAX);
+        vault.deposit(5e19);
+        vm.stopPrank();
     }
 }

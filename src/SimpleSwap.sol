@@ -57,7 +57,7 @@ contract SimpleSwap is ERC20{
     /// @param yIn the amount of token Y that'll be added to the pool
     /// @return zOut the amount of LP tokens that'll be minted to the user
     function init(uint256 xIn, uint256 yIn) external returns(uint256 zOut){
-        require(_totalSupply == 0, "SimpleSwap:Pool already initiated");
+        require(_totalSupply == 0, "SimpleSwap: Pool already initiated");
         require(xIn > 0 && yIn > 0, "SimpleSwap: Can't provide 0 tokens");
         x_0 += xIn;
         y_0 += yIn;
