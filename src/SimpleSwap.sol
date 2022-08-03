@@ -7,10 +7,10 @@ import "yield-utils-v2/token/TransferHelper.sol";
 import "yield-utils-v2/math/WDiv.sol";
 import "yield-utils-v2/math/WMul.sol";
 
-/// @title MechaSwapLP 
+/// @title SimpleSwapLP 
 /// @author hashedMae
 /// @notice A simple AMM with no fees
-contract MechaSwap is ERC20{
+contract SimpleSwap is ERC20{
 
     using TransferHelper for IERC20;
 
@@ -47,7 +47,7 @@ contract MechaSwap is ERC20{
     /// @param yOut amount of token Y that is being swapped out of the pool
     event Swap(address indexed user, uint256 xIn, uint256 yIn, uint256 xOut, uint256 yOut);
 
-    constructor(IERC20 tokenX_, IERC20 tokenY_) ERC20("MechaSwapLP", "MSLP", 18) {
+    constructor(IERC20 tokenX_, IERC20 tokenY_) ERC20("SimpleSwapLP", "SSLP", 18) {
         tokenX = tokenX_;
         tokenY = tokenY_;
     }
@@ -57,8 +57,8 @@ contract MechaSwap is ERC20{
     /// @param yIn the amount of token Y that'll be added to the pool
     /// @return zOut the amount of LP tokens that'll be minted to the user
     function init(uint256 xIn, uint256 yIn) external returns(uint256 zOut){
-        require(_totalSupply == 0, "MechaSwap:Pool already initiated");
-        require(xIn > 0 && yIn > 0, "MechaSwap: Can't provide 0 tokens");
+        require(_totalSupply == 0, "SimpleSwap:Pool already initiated");
+        require(xIn > 0 && yIn > 0, "SimpleSwap: Can't provide 0 tokens");
         x_0 += xIn;
         y_0 += yIn;
         zOut = xIn * yIn;
@@ -72,7 +72,7 @@ contract MechaSwap is ERC20{
     /// @param xIn the amount of token X that'll be added to the pool
     /// @return zOut the amount of LP tokens that'll be minted to the user
     function addLiquidity(uint256 xIn) external returns(uint256 zOut){
-        require(_totalSupply > 0, "MechaSwap:Pool not intiated");
+        require(_totalSupply > 0, "SimpleSwap:Pool not intiated");
         uint256 _x_0 = x_0;
         uint256 _y_0 = y_0;
         uint256 yIn = _y_0 * xIn / _x_0;
@@ -123,6 +123,28 @@ contract MechaSwap is ERC20{
         emit Swap(msg.sender, 0, yIn, xOut, 0);
     }
 
+    function swapXforExactY(uint256 yOut) external returns(uint256 xIn){
+        xIn = _priceOut(yOut, x_0, y_0);
+        x_0 += xIn;
+        y_0 -= yOut;
+        tokenX.safeTransferFrom(msg.sender, address(this), xIn);
+        tokenY.safeTransfer(msg.sender, yOut);
+        emit Swap(msg.sender, xIn, 0, 0, yOut);
+    }
+
+    function swapYforExactX(uint256 xOut) external returns(uint256 yIn){
+        yIn = _priceOut(xOut, y_0, x_0);
+        y_0 += yIn;
+        x_0 -= xOut;
+        tokenY.safeTransferFrom(msg.sender, address(this), yIn);
+        tokenX.safeTransfer(msg.sender, xOut);
+        emit Swap(msg.sender, 0, yIn, xOut, 0);
+    }
+
+    function swapForExactXPreview(uint256 xOut) external view returns(uint256 yIn){
+        yIn = _priceOut(xOut, y_0, x_0);
+    }
+
     /// @notice internal function used for pricing token swaps
     /// @param aIn amount of token that is being sold to the pool
     /// @param aReserves reserves for the token that is being sold to the pool
@@ -132,5 +154,11 @@ contract MechaSwap is ERC20{
         uint256 numerator = aIn * bReserves;
         uint256 denominator = aIn + aReserves;
         bOut = numerator / denominator;
+    }
+
+    function _priceOut(uint256 bOut, uint256 aReserves, uint256 bReserves) internal view returns(uint256 aIn) {
+        uint256 numerator = aReserves * bReserves;
+        uint256 denominator = bReserves - bOut;
+        aIn = (numerator / denominator) - aReserves;
     }
 }

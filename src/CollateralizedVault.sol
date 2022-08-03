@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.13;
 
-import "yield-utils/contracts/math/WDiv.sol";
-import "yield-utils/contracts/math/WMul.sol";
-import "yield-utils/contracts/token/IERC20.sol";
-import "yield-utils/contracts/token/TransferHelper.sol";
+import "yield-utils-v2/math/WDiv.sol";
+import "yield-utils-v2/math/WMul.sol";
+import "yield-utils-v2/token/IERC20.sol";
+import "yield-utils-v2/token/TransferHelper.sol";
 import "chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
-import "yield-utils/contracts/access/Ownable.sol";
+import "yield-utils-v2/access/Ownable.sol";
 
 /// https://github.com/yieldprotocol/mentorship2022/issues/5
 
@@ -36,15 +36,15 @@ contract CollateralizedVault is Ownable {
 
     /// @dev mapping for storing Chainlink Oracle Interfaces
     /// key is address of a token for a token/ETH feed
-    mapping(address => AggregatorV3Interface) public EthFeeds;
+    mapping(address => AggregatorV3Interface) public priceFeeds;
     
 
     /// had been stored in a struct but changed after Alberto suggested nested mappings in Slack
     /// @dev nested mapping for tracking user debts
-    mapping(address => mapping(address => uint256)) public Debts;
+    mapping(address => mapping(address => uint256)) public debts;
 
     /// @dev nested mapping for tracking user deposits
-    mapping(address => mapping(address => uint256)) public Deposits;
+    mapping(address => mapping(address => uint256)) public deposits;
 
     
 
@@ -57,8 +57,127 @@ contract CollateralizedVault is Ownable {
         DAI = dai_;
         WETH = weth_;
         USDC = usdc_;
-        EthFeeds[DAI] = dETH_;
-        EthFeeds[USDC] = uETH_;
+        priceFeeds[DAI] = dETH_;
+        priceFeeds[USDC] = uETH_;
+    }
+
+    
+
+    function daiPrice() external view returns(uint256) {
+        return _daiPrice();
+    }
+
+    function usdcPrice() external view returns(uint256) {
+        return _usdcPrice();
+    }
+
+    /// @dev provides how much DAI is able to be borrowed based on unutilized collateral
+    function availableDAI(address user) external view returns(uint256) {
+        return _availableDAI(user);
+    }
+
+    /// @dev provides how much USDC is able to be borrowed based on unutilized collateral
+    function availableUSDC(address user) external view returns(uint256) {
+        return _availableUSDC(user);
+    }
+
+    
+
+    /// @notice combines a Users DAI and USDC debts and returns it denominated in WETH
+    function totalDebt(address user) external view returns(uint256) {
+        return _totalDebt(user);
+    }
+
+    function tokenDebts(address user) external view returns(uint256 daiDebt, uint256 usdcDebt) {
+        daiDebt = debts[user][DAI];
+        usdcDebt = debts[user][USDC];
+    }
+    
+    /// @notice allows a user to deposit WETH for use as collateral
+    function deposit(uint256 amount) external {
+        deposits[msg.sender][WETH] += amount;
+        IERC20(WETH).safeTransferFrom(msg.sender, address(this), amount);
+        emit Deposit(msg.sender, amount);
+    }
+
+    /// @notice allows a user to borrow DAI
+    function borrowDAI(uint256 amount) external {
+        require(amount <= _availableDAI(msg.sender), "Insufficient collateral");
+        debts[msg.sender][DAI] += amount;
+        IERC20(DAI).safeTransfer(msg.sender, amount);
+        emit Borrow(msg.sender, amount);
+    }
+
+    /// @notice allows a user to borrow USDC
+    function borrowUSDC(uint256 amount) external {
+        require(amount <= _availableUSDC(msg.sender), "Insufficient collateral");
+        debts[msg.sender][USDC] += amount;
+        IERC20(USDC).safeTransfer(msg.sender, amount);
+        emit Borrow(msg.sender, amount);
+    }
+
+    /// @notice allows a user to repay borrowed DAI
+    function repayDAI(uint256 amount) external {
+        require(debts[msg.sender][DAI] >= amount, "payment exceeds debt");
+        debts[msg.sender][DAI] -= amount;
+        IERC20(DAI).safeTransferFrom(msg.sender, address(this), amount);
+        emit Repay(msg.sender, amount, debts[msg.sender][DAI]);
+    }
+
+    /// @notice allows a user to repay borrowed USDC
+    function repayUSDC(uint256 amount) external {
+        require(debts[msg.sender][USDC] >= amount, "payment exceeds debt");
+        debts[msg.sender][USDC] -= amount;
+        IERC20(USDC).safeTransferFrom(msg.sender, address(this), amount);
+        emit Repay(msg.sender, amount, debts[msg.sender][USDC]);
+    }
+
+    /// @notice allows a user to withdraw WETH that's not currently utilized as collateral
+    function withdraw(uint256 amount) external {
+        require(deposits[msg.sender][WETH] - _totalDebt(msg.sender) >= amount, "request exceeds available collateral");
+        deposits[msg.sender][WETH] -= amount;
+        IERC20(WETH).safeTransfer(msg.sender, amount);
+        emit Withdraw(msg.sender, amount);
+    }
+
+    /// @notice provides a user's value to debt ratio
+    function _ratio(address user) view internal returns(uint256 userRatio){
+        userRatio = WDiv.wdiv(deposits[msg.sender][WETH], _totalDebt(user));
+    }
+
+    function ratio(address user) view external returns(uint256 userRatio) {
+        userRatio = _ratio(user);
+    }
+
+    /// @notice allows any user to liquidate under collateralized users
+    function liquidate(address user) external returns(uint256){
+        require(!_isCollateralized(user), "specified user can't be liquidated");
+        uint256 lqdtdWETH = deposits[user][WETH];
+        uint256 debtDAI = debts[user][DAI];
+        uint256 debtUSDC = debts[user][USDC];
+        deposits[user][WETH] = 0;
+        debts[user][DAI] = 0;
+        debts[user][USDC] = 0;
+        IERC20(DAI).safeTransferFrom(msg.sender, address(this), debtDAI);
+        IERC20(USDC).safeTransferFrom(msg.sender, address(this), debtUSDC);
+        IERC20(WETH).safeTransfer(msg.sender, lqdtdWETH);
+        return lqdtdWETH;
+    }
+
+    ///@notice function to determine if a user is currently sufficiently collateralized
+    ///@dev max ltv ration is 66%
+    function _isCollateralized(address user) internal view returns(bool collateralized) {
+        uint256 debt = _totalDebt(user);
+        uint256 deposit_ = deposits[user][WETH];
+
+        uint256 vaultRatio = WDiv.wdiv(debt, deposit_);
+
+        if(vaultRatio <= 66e16){
+            collateralized = true;
+        } else {
+            collateralized = false;
+        }
+        
     }
 
     /// @return price the price of 1 DAI in WETH
@@ -67,12 +186,8 @@ contract CollateralizedVault is Ownable {
         int256 price,
             ,
             ,
-        ) = EthFeeds[DAI].latestRoundData();
+        ) = priceFeeds[DAI].latestRoundData();
         return uint256(price);
-    }
-
-    function daiPrice() external view returns(uint256) {
-        return _daiPrice();
     }
 
     /// @return price the price of 1 USDC in WETH
@@ -82,33 +197,25 @@ contract CollateralizedVault is Ownable {
             /*uint startedAt*/,
             /*uint timeStam*/,
             /*uint80 answeredInRound*/
-        ) = EthFeeds[USDC].latestRoundData();
+        ) = priceFeeds[USDC].latestRoundData();
         return uint256(price);
     }
 
-    function usdcPrice() external view returns(uint256) {
-        return _usdcPrice();
-    }
-
-    /// @dev provides how much DAI is able to be borrowed based on unutilized collateral
     function _availableDAI(address user) internal view returns(uint256) {
-        uint256 freeCollateral = Deposits[user][WETH] - _totalDebt(user);
+        uint256 freeCollateral = deposits[user][WETH] - _totalDebt(user);
         
         return WDiv.wdiv(freeCollateral, _daiPrice());
     }
 
-    function availableDAI(address user) external view returns(uint256) {
-        return _availableDAI(user);
-    }
-
-    /// @dev provides how much USDC is able to be borrowed based on unutilized collateral
     function _availableUSDC(address user) internal view returns(uint256) {
-        uint256 freeCollateral = Deposits[user][WETH] - _totalDebt(user);
+        uint256 freeCollateral = deposits[user][WETH] - _totalDebt(user);
         return WDiv.wdiv(freeCollateral, _usdcPrice());
     }
 
-    function availableUSDC(address user) internal view returns(uint256) {
-        return _availableUSDC(user);
+
+    /// @dev because USDC is six decimals, 12 decimals are added to the USDC/WETH amount befoe adding the DAI/WETH amount
+    function _totalDebt(address user) internal view returns(uint256) {
+       return _dai2WETH(debts[user][DAI]) + (_usdc2WETH(debts[user][USDC])*10**12);
     }
 
     /// @dev provides how much an amount of DAI is worth in WETH
@@ -126,80 +233,5 @@ contract CollateralizedVault is Ownable {
         price = WDiv.wdiv(_daiPrice(), _usdcPrice());
     }
 
-    /// @notice combines a Users DAI and USDC debts and returns it denominated in WETH
-    /// @dev because USDC is six decimals, 12 decimals are added to the USDC/WETH amount befoe adding the DAI/WETH amount
-    function _totalDebt(address user) internal view returns(uint256) {
-       return _dai2WETH(Debts[user][DAI]) + (_usdc2WETH(Debts[user][USDC])*10**12);
-    }
-
-    function totalDebt(address user) external view returns(uint256) {
-        return _totalDebt(user);
-    }
-    
-    /// @notice allows a user to deposit WETH for use as collateral
-    function deposit(uint256 amount) external {
-        Deposits[msg.sender][WETH] += amount;
-        IERC20(WETH).safeTransferFrom(msg.sender, address(this), amount);
-        emit Deposit(msg.sender, amount);
-    }
-
-    /// @notice allows a user to borrow DAI
-    function borrowDAI(uint256 amount) external {
-        require(amount <= _availableDAI(msg.sender), "Insufficient collateral");
-        Debts[msg.sender][DAI] += amount;
-        IERC20(DAI).safeTransfer(msg.sender, amount);
-        emit Borrow(msg.sender, amount);
-    }
-
-    /// @notice allows a user to borrow USDC
-    function borrowUSDC(uint256 amount) external {
-        require(amount <= _availableUSDC(msg.sender), "Insufficient collateral");
-        Debts[msg.sender][USDC] += amount;
-        IERC20(USDC).safeTransfer(msg.sender, amount);
-        emit Borrow(msg.sender, amount);
-    }
-
-    /// @notice allows a user to repay borrowed DAI
-    function repayDAI(uint256 amount) external {
-        require(Debts[msg.sender][DAI] >= amount, "payment exceeds debt");
-        Debts[msg.sender][DAI] -= amount;
-        IERC20(DAI).safeTransferFrom(msg.sender, address(this), amount);
-        emit Repay(msg.sender, amount, Debts[msg.sender][DAI]);
-    }
-
-    /// @notice allows a user to repay borrowed USDC
-    function repayUSDC(uint256 amount) external {
-        require(Debts[msg.sender][USDC] >= amount, "payment exceeds debt");
-        Debts[msg.sender][USDC] -= amount;
-        IERC20(USDC).safeTransferFrom(msg.sender, address(this), amount);
-        emit Repay(msg.sender, amount, Debts[msg.sender][USDC]);
-    }
-
-    /// @notice allows a user to withdraw WETH that's not currently utilized as collateral
-    function withdraw(uint256 amount) external {
-        require(Deposits[msg.sender][WETH] - _totalDebt(msg.sender) >= amount, "request exceeds available collateral");
-        Deposits[msg.sender][WETH] -= amount;
-        IERC20(WETH).safeTransfer(msg.sender, amount);
-        emit Withdraw(msg.sender, amount);
-    }
-
-    /// @notice provides a user's value to debt ratio
-    function _ratio(address user) view internal returns(uint256 userRatio){
-        userRatio = WDiv.wdiv(Deposits[msg.sender][WETH], _totalDebt(user));
-    }
-
-    function ratio(address user) view external returns(uint256 userRatio) {
-        userRatio = _ratio(user);
-    }
-
-    /// @notice allows vault owner to liquidate under collateralized Users
-    function liquidate(address user) external onlyOwner {
-        require(_ratio(user) < 1, "specified user can't be liquidated");
-        uint256 lqdtdWETH = Deposits[user][WETH];
-        Deposits[user][WETH] = 0;
-        Debts[user][DAI] = 0;
-        Debts[user][USDC] = 0;
-        IERC20(WETH).transfer(msg.sender, lqdtdWETH);
-    }
 
 }

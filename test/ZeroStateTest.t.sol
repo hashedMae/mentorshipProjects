@@ -1,83 +1,56 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "./ZeroState.t.sol";
+import "test/ZeroState.t.sol";
 
 contract ZeroStateTest is ZeroState {
 
-    
+    function testDAIDebt(uint256 a) public {
+        a = bound(a, 5527147e16, 70118025e15);
+        uint256 p = vault.deposits(orson, WETH);
+        p -= sDAI.swapForExactXPreview(a);
 
-    function testDeposit(uint256 amount) public {
-        amount = bound(amount, 10000, 10000e18);
+        vm.prank(orson);
+        vault.borrowDAI(a);
 
-        uint256 preBalance = iWETH.balanceOf(maverick);
+        
 
-        vm.startPrank(maverick);
-        iWETH.approve(address(vault), 10000e18);
-        vault.deposit(amount);
+        uint256 wBal = iWETH.balanceOf(jyn);
+        ///vm.expectEmit(true, true, false, false);
+        ///emit Liquidation(jyn, orson, a, p);
+        vm.prank(jyn);
+        liquid.liquidate(orson);
+        assertGt(iWETH.balanceOf(jyn), wBal);
+    }
+
+    /***
+    function testUSDCDebt(uint256 a) public {
+        a = bound(a, 5527147e4, 78118025e3);
+
+        vm.prank(orson);
+        vault.borrowUSDC(a);
+
+        uint256 wBal = iWETH.balanceOf(jyn);
+        vm.expectEmit(true, true, false, false);
+        emit Liquidation(jyn, orson, 0, 0, 0);
+        vm.prank(jyn);
+        uint256 pWETH = liquid.liquidate(orson);
+        assertEq(iWETH.balanceOf(jyn), wBal + pWETH);
+    }
+
+    function testDualDebt(uint256 a, uint256 b) public {
+        a = bound(a, 27735735e15,  390959012e14);
+        b = bound(b, 27735735e3, 390959012e2);
+        vm.startPrank(orson);
+        vault.borrowDAI(a);
+        vault.borrowUSDC(b);
         vm.stopPrank();
-        
-        assertEq(vault.Deposits(maverick, WETH), amount);
-        assertEq(preBalance - amount, iWETH.balanceOf(maverick));
-        assertEq(iWETH.balanceOf(address(vault)), amount);
-    }
 
-    function testDepositEmit(uint256 amount) public {
-        amount = bound(amount, 10000, 10000e18);
-
-        
-
-        vm.startPrank(phoenix);
-        iWETH.approve(address(vault), 10000e18);
-        vm.expectEmit(true, false, false, true);
-        emit Deposit(phoenix, amount);
-        vault.deposit(amount);
-        vm.stopPrank();
-    }
-
-    function testCannotBorrowDAIWithoutDeposit(uint256 amount) public {
-        vm.assume(amount>1);
-        vm.prank(rooster);
-        vm.expectRevert("Insufficient collateral");
-        
-        vault.borrowDAI(amount);
-    }
-
-    function testCannotBorrowUSDCWithoutDeposit(uint256 amount) public {
-        vm.assume(amount>1);
-        vm.expectRevert("Insufficient collateral");
-        vm.prank(iceman);
-        vault.borrowUSDC(amount);
-    }
-
-    function testCannotWithdrawWETHWithoutBalance(uint256 amount) public {
-        vm.assume(amount>1);
-        vm.expectRevert("request exceeds available collateral");
-        vm.prank(maverick);
-        vault.withdraw(amount);
-    }
-
-    function testCannotRepayZeroDAIDebt(uint256 amount) public {
-        vm.assume(amount>1);
-        vm.expectRevert("payment exceeds debt");
-        vm.prank(maverick);
-        vault.repayDAI(amount);
-    }
-
-    function testCannotRepayZeroUSDCDebt(uint256 amount) public {
-        vm.assume(amount>1);
-        vm.expectRevert("payment exceeds debt");
-        vm.prank(phoenix);
-        vault.repayUSDC(amount);
-    }
-
-    function testCannotLiquidateUnlessOwner() public {
-        vm.expectRevert("Ownable: caller is not the owner");
-        vm.prank(rooster);
-        vault.liquidate(maverick);
-    }
-
-    
-
+        uint256 wBal = iWETH.balanceOf(jyn);
+        vm.expectEmit(true, true, false, false);
+        emit Liquidation(jyn, orson, a, b, 0);
+        vm.prank(jyn);
+        uint256 pWETH = liquid.liquidate(orson);
+        assertEq(iWETH.balanceOf(jyn), wBal + pWETH);
+    } */
 }
-
